@@ -1,0 +1,512 @@
+export type Role =
+  | 'FARMER'
+  | 'FIELD_WORKER'
+  | 'VETERINARIAN'
+  | 'LABORATORY_STAFF'
+  | 'DISTRICT_OFFICIAL'
+  | 'STATE_ADMIN'
+  | 'SYSTEM_ADMIN';
+
+export type Species =
+  | 'Cattle'
+  | 'Buffalo'
+  | 'Goat'
+  | 'Sheep'
+  | 'Pig'
+  | 'Poultry'
+  | 'Horse'
+  | 'Camel'
+  | 'Other';
+
+export type HealthStatus =
+  | 'HEALTHY'
+  | 'UNDER_OBSERVATION'
+  | 'AFFECTED'
+  | 'RECOVERED'
+  | 'DECEASED';
+
+export type RiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+
+export type CaseStatus =
+  | 'NEW'
+  | 'UNDER_REVIEW'
+  | 'VET_VISIT_REQUIRED'
+  | 'SAMPLE_REQUESTED'
+  | 'SAMPLE_COLLECTED'
+  | 'LAB_TESTING'
+  | 'CONFIRMED'
+  | 'RULED_OUT'
+  | 'CONTAINMENT'
+  | 'RESOLVED';
+
+export type SampleStatus =
+  | 'REQUESTED'
+  | 'COLLECTED'
+  | 'IN_TRANSIT'
+  | 'RECEIVED_AT_LAB'
+  | 'TESTING_IN_PROGRESS'
+  | 'RESULT_AVAILABLE'
+  | 'REJECTED';
+
+export type TestResult = 'PENDING' | 'POSITIVE' | 'NEGATIVE' | 'INCONCLUSIVE';
+
+export type OutbreakStatus =
+  | 'SUSPECTED'
+  | 'INVESTIGATING'
+  | 'CONFIRMED'
+  | 'CONTAINMENT_ZONE'
+  | 'RESOLVED';
+
+export type AlertPriority = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+export type LanguageCode = 'en' | 'hi' | 'kn' | 'te';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: Role;
+  avatarUrl?: string;
+  stateId: string;
+  districtId: string;
+  blockId?: string;
+  villageId?: string;
+  farmId?: string;
+  assignedLaboratoryId?: string;
+  licenseNumber?: string;
+  preferredLanguage: LanguageCode;
+}
+
+export interface LocationHierarchy {
+  stateId: string;
+  stateName: string;
+  districtId: string;
+  districtName: string;
+  blockId: string;
+  blockName: string;
+  villageId: string;
+  villageName: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface Farm {
+  id: string;
+  name: string;
+  ownerId: string;
+  ownerName: string;
+  phone: string;
+  stateId: string;
+  districtId: string;
+  blockId: string;
+  villageId: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  totalAnimals: number;
+  speciesPresent: Species[];
+  biosecurityLevel: 'BASIC' | 'STANDARD' | 'ADVANCED';
+}
+
+export interface Animal {
+  id: string;
+  tagNumber: string;
+  name?: string;
+  species: Species;
+  breed: string;
+  sex: 'MALE' | 'FEMALE';
+  dateOfBirth?: string;
+  ageYears: number;
+  ownerId: string;
+  ownerName: string;
+  farmId: string;
+  farmName: string;
+  herdId?: string;
+  herdName?: string;
+  weightKg: number;
+  pregnancyStatus: 'NOT_PREGNANT' | 'PREGNANT' | 'LACTATING' | 'NOT_APPLICABLE';
+  currentHealthStatus: HealthStatus;
+  stateId: string;
+  districtId: string;
+  blockId: string;
+  villageId: string;
+  latitude: number;
+  longitude: number;
+  registeredAt: string;
+  lastCheckedAt: string;
+  vaccinationCount: number;
+  activeCaseId?: string;
+}
+
+export interface Herd {
+  id: string;
+  herdCode: string;
+  name: string;
+  ownerId: string;
+  ownerName: string;
+  farmId: string;
+  species: Species;
+  breed: string;
+  stateId: string;
+  districtId: string;
+  villageId: string;
+  totalAnimals: number;
+  healthyCount: number;
+  affectedCount: number;
+  underObservationCount: number;
+  recoveredCount: number;
+  deathCount: number;
+  vaccinationCoveragePct: number;
+  riskScore: number;
+  riskLevel: RiskLevel;
+}
+
+export interface Symptom {
+  id: string;
+  name: string;
+  category: 'GENERAL' | 'RESPIRATORY' | 'DIGESTIVE' | 'ORAL_FOOT' | 'SKIN' | 'REPRODUCTIVE' | 'NEUROLOGICAL' | 'MORTALITY';
+  description: string;
+  severityScale: ('mild' | 'moderate' | 'severe')[];
+  iconName: string;
+}
+
+export interface Disease {
+  id: string;
+  name: string;
+  scientificName: string;
+  commonNames: string[];
+  category: 'VIRAL' | 'BACTERIAL' | 'PARASITIC' | 'FUNGAL' | 'OTHER';
+  causativeAgent: string;
+  affectedSpecies: Species[];
+  transmission: string;
+  incubationDays: string;
+  majorSymptoms: string[];
+  additionalSymptoms: string[];
+  riskFactors: string[];
+  geographicRelevance: string;
+  seasonalRelevance: string;
+  severity: 'MODERATE' | 'HIGH' | 'CRITICAL';
+  mortalityRateTypical: string;
+  productivityImpact: string;
+  zoonotic: boolean;
+  notifiable: boolean;
+  diagnosticMethods: string[];
+  labTests: string[];
+  prevention: string;
+  vaccinationInfo: string;
+  biosecurityRecommendations: string[];
+  veterinaryGuidance: string;
+  isolationPeriodDays: number;
+  emergencyPriority: 'ROUTINE' | 'ELEVATED' | 'HIGH_EMERGENCY';
+}
+
+export interface DiseaseSymptomWeight {
+  diseaseId: string;
+  symptomId: string;
+  importanceWeight: number; // 1 to 5
+  typicality: 'CLASSIC' | 'COMMON' | 'OCCASIONAL' | 'RARE';
+  species?: Species[];
+}
+
+export interface SymptomObservation {
+  symptomId: string;
+  symptomName: string;
+  severity: 'mild' | 'moderate' | 'severe';
+  onsetDate: string;
+  notes?: string;
+}
+
+export interface SuspectedDiseaseMatch {
+  diseaseId: string;
+  diseaseName: string;
+  scientificName: string;
+  screeningScore: number; // 0 - 100
+  confidenceLevel: 'LOW' | 'MODERATE' | 'HIGH';
+  matchingSymptoms: string[];
+  keyDifferentiators: string[];
+  notifiable: boolean;
+  zoonotic: boolean;
+}
+
+export interface RecommendedAdvisory {
+  category: 'MONITOR' | 'BIOSECURITY' | 'ISOLATION / MOVEMENT CONTROL' | 'VETERINARY REVIEW' | 'VACCINATION REVIEW' | 'SAMPLE COLLECTION' | 'LABORATORY REFERRAL' | 'OUTBREAK REPORTING';
+  title: string;
+  action: string;
+  rationale: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  targetActor: 'FARMER' | 'VETERINARIAN' | 'FIELD_WORKER' | 'DISTRICT_OFFICIAL';
+  timeframe: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  actorId: string;
+  actorName: string;
+  actorRole: Role;
+  action: string;
+  details: string;
+}
+
+export interface Case {
+  id: string;
+  caseNumber: string;
+  animalId?: string;
+  animalTag?: string;
+  herdId?: string;
+  herdName?: string;
+  species: Species;
+  ownerName: string;
+  ownerPhone: string;
+  farmId: string;
+  farmName: string;
+  stateId: string;
+  stateName: string;
+  districtId: string;
+  districtName: string;
+  blockId: string;
+  villageId: string;
+  villageName: string;
+  latitude: number;
+  longitude: number;
+  reporterId: string;
+  reporterName: string;
+  reporterRole: Role;
+  symptoms: SymptomObservation[];
+  naturalLanguageDescription?: string;
+  symptomsStartDate: string;
+  affectedCount: number;
+  deadCount: number;
+  suspectedDiseases: SuspectedDiseaseMatch[];
+  riskScore: number;
+  riskLevel: RiskLevel;
+  status: CaseStatus;
+  statusNotes?: string;
+  priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+  sampleIds?: string[];
+  treatmentIds?: string[];
+  createdAt: string;
+  updatedAt: string;
+  auditTrail: AuditLogEntry[];
+  weatherAtReport?: {
+    temperatureC: number;
+    humidityPct: number;
+    rainfallMm: number;
+    condition: string;
+  };
+}
+
+export interface Vaccine {
+  id: string;
+  name: string;
+  diseasePrevented: string;
+  targetSpecies: Species[];
+  doseVolume: string;
+  administrationRoute: string;
+  schedule: string;
+  boosterFrequencyMonths: number;
+  storageRequirement: string;
+  manufacturer: string;
+}
+
+export interface VaccinationRecord {
+  id: string;
+  animalId?: string;
+  animalTag?: string;
+  herdId?: string;
+  species: Species;
+  farmId: string;
+  villageName: string;
+  districtName: string;
+  vaccineId: string;
+  vaccineName: string;
+  diseasePrevented: string;
+  dateAdministered: string;
+  nextDueDate: string;
+  doseNumber: number;
+  batchNumber: string;
+  administeredBy: string;
+  administeredByRole: string;
+  status: 'COMPLETED' | 'SCHEDULED' | 'OVERDUE';
+}
+
+export interface TreatmentRecord {
+  id: string;
+  caseId?: string;
+  animalId?: string;
+  animalTag?: string;
+  species: Species;
+  farmName: string;
+  suspectedDisease: string;
+  treatmentDate: string;
+  medicines: {
+    medicineName: string;
+    dosage: string;
+    durationDays: number;
+    route: 'INTRAMUSCULAR' | 'ORAL' | 'SUBCUTANEOUS' | 'TOPICAL' | 'INTRAVENOUS';
+  }[];
+  veterinarianId: string;
+  veterinarianName: string;
+  treatmentResponse: 'IMPROVING' | 'UNCHANGED' | 'DETERIORATING' | 'RECOVERED';
+  remarks: string;
+  createdAt: string;
+}
+
+export interface MortalityReport {
+  id: string;
+  reportCode: string;
+  animalId?: string;
+  animalTag?: string;
+  herdId?: string;
+  species: Species;
+  farmId: string;
+  farmName: string;
+  ownerName: string;
+  ownerPhone: string;
+  stateName: string;
+  districtName: string;
+  villageName: string;
+  latitude: number;
+  longitude: number;
+  dateOfDeath: string;
+  deadCount: number;
+  affectedCount: number;
+  suspectedCause: string;
+  symptomsBeforeDeath: string[];
+  reportedBy: string;
+  reportedByRole: Role;
+  necropsyConducted: boolean;
+  necropsyFindings?: string;
+  carcassDisposalMethod: 'BURIAL_WITH_LIME' | 'INCINERATION' | 'RENDERING' | 'PENDING';
+  outbreakTriggered: boolean;
+  createdAt: string;
+}
+
+export interface Outbreak {
+  id: string;
+  outbreakCode: string;
+  diseaseId: string;
+  diseaseName: string;
+  species: Species[];
+  stateName: string;
+  districtName: string;
+  primaryVillage: string;
+  latitude: number;
+  longitude: number;
+  radiusKm: number;
+  startDate: string;
+  status: OutbreakStatus;
+  riskLevel: RiskLevel;
+  totalCases: number;
+  totalDeaths: number;
+  affectedAnimalCount: number;
+  containmentMeasures: string[];
+  caseIds: string[];
+  declaredBy: string;
+  lastUpdated: string;
+}
+
+export interface LabSample {
+  id: string;
+  sampleCode: string;
+  caseId: string;
+  caseNumber: string;
+  animalId?: string;
+  animalTag?: string;
+  species: Species;
+  sampleType: 'BLOOD_SERUM' | 'NASAL_SWAB' | 'TISSUE_BIOPSY' | 'MILK_SAMPLE' | 'VESICULAR_FLUID' | 'FECAL_SAMPLE' | 'SKIN_SCRAPING' | 'LYMPH_NODE_ASPIRATE';
+  collectionDate: string;
+  collectedBy: string;
+  laboratoryId: string;
+  laboratoryName: string;
+  testRequested: 'RT_PCR' | 'ELISA' | 'BACTERIAL_CULTURE' | 'BLOOD_SMEAR_MICROSCOPY' | 'SEROLOGY' | 'ANTIGEN_RAPID';
+  suspectedDiseaseName: string;
+  status: SampleStatus;
+  result: TestResult;
+  resultDetails?: string;
+  testedBy?: string;
+  resultDate?: string;
+  remarks?: string;
+}
+
+export interface Alert {
+  id: string;
+  title: string;
+  message: string;
+  priority: AlertPriority;
+  category: 'OUTBREAK' | 'HIGH_RISK' | 'MORTALITY_CLUSTER' | 'VACCINATION_OVERDUE' | 'LAB_CONFIRMATION' | 'CASE_ESCALATION' | 'WEATHER_WARNING';
+  targetRoles: Role[];
+  districtName?: string;
+  villageName?: string;
+  caseId?: string;
+  outbreakId?: string;
+  createdAt: string;
+  isRead: boolean;
+  actionUrl?: string;
+}
+
+export interface WeatherData {
+  districtId: string;
+  districtName: string;
+  stateName: string;
+  temperatureC: number;
+  humidityPct: number;
+  rainfallMm: number;
+  windSpeedKph: number;
+  condition: 'Sunny' | 'Partly Cloudy' | 'Rainy' | 'Heavy Rain' | 'Humid & Overcast' | 'Dry & Warm';
+  season: 'MONSOON' | 'WINTER' | 'SUMMER' | 'POST_MONSOON';
+  vectorRiskIndex: 'LOW' | 'MODERATE' | 'HIGH' | 'EXTREME';
+  thermalStressIndex: 'NORMAL' | 'ALERT' | 'DANGER' | 'EMERGENCY';
+  historicalCorrelationInsight: string;
+}
+
+export interface RiskCalculationResult {
+  score: number; // 0 to 100
+  level: RiskLevel;
+  symptomMatchScore: number;
+  nearbyClusterScore: number;
+  affectedRateScore: number;
+  mortalityScore: number;
+  vaccinationScore: number;
+  historicalTrendScore: number;
+  weatherFactorScore: number;
+  suspectedDiseases: SuspectedDiseaseMatch[];
+  contributingFactors: string[];
+  recommendedActions: RecommendedAdvisory[];
+  requiresVeterinaryReview: boolean;
+  outbreakSignal: boolean;
+  nearbyCasesCount: number;
+  disclaimer: string;
+}
+
+export interface OfflineSyncItem {
+  id: string;
+  type: 'CASE_REPORT' | 'MORTALITY_REPORT' | 'ANIMAL_REGISTRATION' | 'VACCINATION_RECORD';
+  data: any;
+  createdAt: string;
+  status: 'PENDING' | 'SYNCED' | 'FAILED';
+  errorMessage?: string;
+}
+
+export interface SystemConfig {
+  riskWeights: {
+    symptomMatch: number; // default 0.30
+    nearbyCases: number; // default 0.20
+    affectedRate: number; // default 0.15
+    mortality: number; // default 0.10
+    vaccination: number; // default 0.10
+    historicalTrends: number; // default 0.10
+    weather: number; // default 0.05
+  };
+  clusterThresholds: {
+    minCases: number; // default 3
+    radiusKm: number; // default 10
+    timeWindowDays: number; // default 14
+  };
+  riskLevelCutoffs: {
+    moderate: number; // 31
+    high: number; // 61
+    critical: number; // 81
+  };
+}
