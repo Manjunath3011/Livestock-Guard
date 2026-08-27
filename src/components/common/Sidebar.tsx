@@ -2,6 +2,7 @@ import React from 'react';
 import { Role } from '../../types';
 import { store } from '../../services/store';
 import { TRANSLATIONS } from '../../i18n/translations';
+import { USER_ROLES, normalizeRole, getRoleMetadata } from '../../auth/roles';
 import {
   LayoutDashboard,
   PawPrint,
@@ -20,7 +21,11 @@ import {
   TrendingUp,
   FileText,
   Settings,
-  X
+  X,
+  Zap,
+  Users,
+  ShieldCheck,
+  Activity
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -40,29 +45,125 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const currentLang = store.getLanguage();
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
+  const canonicalRole = normalizeRole(currentRole) || 'FARMER';
+  const roleMeta = getRoleMetadata(canonicalRole);
 
-  // Module items configuration
+  // Define navigational menu structure with strict role-filtering
   const navItems = [
-    { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'LABORATORY_STAFF', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'report_case', label: t.reportCase, icon: PlusCircle, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'SYSTEM_ADMIN'], badge: 'Quick' },
-    { id: 'vet_dashboard', label: t.veterinaryDashboard, icon: Stethoscope, roles: ['VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'], badge: 'Triage' },
-    { id: 'animals', label: t.animals, icon: PawPrint, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'SYSTEM_ADMIN'] },
-    { id: 'herds', label: t.herds, icon: Layers, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'SYSTEM_ADMIN'] },
-    { id: 'risk_map', label: t.riskMap, icon: MapPin, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'LABORATORY_STAFF', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'outbreaks', label: t.outbreaks, icon: Radio, roles: ['FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'], badge: 'Live' },
-    { id: 'laboratory', label: t.laboratory, icon: FlaskConical, roles: ['LABORATORY_STAFF', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'vaccinations', label: t.vaccinations, icon: Syringe, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'treatments', label: t.treatments, icon: Pill, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'SYSTEM_ADMIN'] },
-    { id: 'mortality', label: t.mortality, icon: Skull, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'knowledge_base', label: t.diseaseKnowledgeBase, icon: BookOpen, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'LABORATORY_STAFF', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'weather', label: t.weatherEnvironment, icon: CloudSun, roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'historical_trends', label: t.historicalTrends, icon: TrendingUp, roles: ['VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'reports_analytics', label: t.reportsAnalytics, icon: FileText, roles: ['DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'] },
-    { id: 'testing_center', label: 'Testing & Simulations', icon: FlaskConical, roles: ['SYSTEM_ADMIN', 'STATE_ADMIN', 'DISTRICT_OFFICIAL', 'VETERINARIAN', 'FIELD_WORKER', 'FARMER'], badge: 'Admin' },
-    { id: 'settings', label: t.settings, icon: Settings, roles: ['SYSTEM_ADMIN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN'] }
+    {
+      id: 'dashboard',
+      label: t.dashboard || 'Role Dashboard',
+      icon: LayoutDashboard,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
+      badge: 'Main'
+    },
+    {
+      id: 'report_case',
+      label: t.reportCase || 'Report Health Issue',
+      icon: PlusCircle,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'SYSTEM_ADMIN'],
+      badge: 'Quick'
+    },
+    {
+      id: 'vet_dashboard',
+      label: 'Clinical Triage & Cases',
+      icon: Stethoscope,
+      roles: ['VETERINARIAN', 'DISTRICT_OFFICIAL', 'SYSTEM_ADMIN'],
+      badge: 'Priority'
+    },
+    {
+      id: 'animals',
+      label: canonicalRole === 'FARMER' ? 'My Animals' : t.animals || 'Registered Animals',
+      icon: PawPrint,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'herds',
+      label: t.herds || 'Herds & Flocks',
+      icon: Layers,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'risk_map',
+      label: t.riskMap || 'Regional Risk Map',
+      icon: MapPin,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'outbreaks',
+      label: t.outbreaks || 'Outbreak Radar',
+      icon: Radio,
+      roles: ['FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
+      badge: 'Live'
+    },
+    {
+      id: 'laboratory',
+      label: canonicalRole === 'LABORATORY_STAFF' ? 'Sample Queue & Tests' : t.laboratory || 'Diagnostic Lab',
+      icon: FlaskConical,
+      roles: ['LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'vaccinations',
+      label: t.vaccinations || 'Vaccination Drives',
+      icon: Syringe,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'treatments',
+      label: t.treatments || 'Treatments & Rx',
+      icon: Pill,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'mortality',
+      label: t.mortality || 'Mortality Reports',
+      icon: Skull,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'historical_trends',
+      label: t.historicalTrends || 'Epidemiological Trends',
+      icon: TrendingUp,
+      roles: ['VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'reports_analytics',
+      label: t.reportsAnalytics || 'Reports & Analytics',
+      icon: FileText,
+      roles: ['DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'knowledge_base',
+      label: t.diseaseKnowledgeBase || 'Disease Knowledge Base',
+      icon: BookOpen,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'weather',
+      label: t.weatherEnvironment || 'Weather & Vector Risk',
+      icon: CloudSun,
+      roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+    },
+    {
+      id: 'testing_center',
+      label: 'Testing & Simulations',
+      icon: Zap,
+      roles: ['SYSTEM_ADMIN', 'STATE_ADMIN', 'DISTRICT_OFFICIAL', 'VETERINARIAN', 'FIELD_WORKER', 'FARMER'],
+      badge: 'Sandbox'
+    },
+    {
+      id: 'settings',
+      label: 'Surveillance Settings',
+      icon: Settings,
+      roles: ['SYSTEM_ADMIN', 'STATE_ADMIN']
+    }
   ];
 
-  const filteredNav = navItems.filter(item => item.roles.includes(currentRole));
+  const filteredNav = navItems.filter(item => 
+    item.roles.includes(canonicalRole) || 
+    (canonicalRole === 'LABORATORY_STAFF' && item.roles.includes('DIAGNOSTIC_LAB')) ||
+    (canonicalRole === 'DIAGNOSTIC_LAB' && item.roles.includes('LABORATORY_STAFF'))
+  );
 
   return (
     <>
@@ -95,8 +196,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Nav Links Scroll Area */}
         <div className="p-3 space-y-1 overflow-y-auto grow">
-          <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            {currentRole.replace('_', ' ')} WORKSPACE
+          {/* Active Role Identifier Header */}
+          <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-800 mb-2 pb-2">
+            <span className="truncate">{roleMeta.shortLabel} WORKSPACE</span>
+            <span className="text-xs">{roleMeta.iconEmoji}</span>
           </div>
 
           {filteredNav.map(item => {
@@ -141,18 +244,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* Bottom System Status Badge */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40">
-          <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/50 space-y-1.5">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 font-medium">Surveillance Core</span>
-              <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Active
-              </span>
-            </div>
-            <div className="text-[10px] text-slate-500 font-mono">
-              v2.6 • PostgreSQL Ingest
+        {/* Bottom Role Info Footer */}
+        <div className="p-3 border-t border-slate-800 bg-slate-950/50">
+          <div className="px-2 py-1.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
+            <span className="text-base">{roleMeta.iconEmoji}</span>
+            <div className="min-w-0 grow">
+              <div className="text-[11px] font-bold text-white truncate">
+                {roleMeta.displayName}
+              </div>
+              <div className="text-[9px] text-emerald-400 font-mono truncate">
+                Role: {canonicalRole}
+              </div>
             </div>
           </div>
         </div>

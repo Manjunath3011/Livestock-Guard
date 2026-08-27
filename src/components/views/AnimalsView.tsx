@@ -4,6 +4,9 @@ import { store } from '../../services/store';
 import { Modal } from '../common/Modal';
 import { RiskBadge } from '../common/RiskBadge';
 import { CaseStatusBadge } from '../common/CaseStatusBadge';
+import { IndiaLocationPicker } from '../common/IndiaLocationPicker';
+import { NormalizedLocationSelection } from '../../types/location';
+import { indiaLocationService } from '../../services/IndiaLocationService';
 import {
   PawPrint,
   PlusCircle,
@@ -24,7 +27,8 @@ import {
   ShieldCheck,
   Activity,
   ChevronRight,
-  FileText
+  FileText,
+  Edit3
 } from 'lucide-react';
 
 interface AnimalsViewProps {
@@ -56,6 +60,8 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
   const [newAge, setNewAge] = useState<number>(3.5);
   const [newWeight, setNewWeight] = useState<number>(380);
   const [newFarmId, setNewFarmId] = useState<string>(farms[0]?.id || 'farm_01');
+  const [isCustomLocationOpen, setIsCustomLocationOpen] = useState(false);
+  const [customLocation, setCustomLocation] = useState<NormalizedLocationSelection | null>(null);
 
   // Context store queries for selected animal
   const cases = store.getCases();
@@ -89,6 +95,13 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
     }
 
     const farmObj = farms.find(f => f.id === newFarmId);
+    const loc = customLocation || (farmObj ? {
+      stateId: farmObj.stateId,
+      districtId: farmObj.districtId,
+      subDistrictId: farmObj.blockId,
+      villageId: farmObj.villageId,
+      coordinates: { latitude: farmObj.latitude, longitude: farmObj.longitude }
+    } : null);
 
     store.registerAnimal({
       tagNumber: newTag.trim().toUpperCase(),
@@ -104,17 +117,19 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
       farmName: farmObj?.name || 'Local Farm Unit',
       ownerId: currentUser.id,
       ownerName: currentUser.name,
-      stateId: farmObj?.stateId || 'st_mah',
-      districtId: farmObj?.districtId || 'dt_pune',
-      blockId: farmObj?.blockId || 'bk_baramati',
-      villageId: farmObj?.villageId || 'vl_malegaon_bk',
-      latitude: farmObj?.latitude || 18.1524,
-      longitude: farmObj?.longitude || 74.5768
+      stateId: loc?.stateId || farmObj?.stateId || 'st_in_mh',
+      districtId: loc?.districtId || farmObj?.districtId || 'dt_in_mh_pune',
+      blockId: loc?.subDistrictId || farmObj?.blockId || 'sd_in_mh_pune_baramati',
+      villageId: loc?.villageId || farmObj?.villageId || 'vl_in_mh_pune_baramati_malegaon_bk',
+      latitude: loc?.coordinates?.latitude || farmObj?.latitude || 18.1524,
+      longitude: loc?.coordinates?.longitude || farmObj?.longitude || 74.5768
     });
 
     setIsRegisterModalOpen(false);
     setNewTag('');
     setNewName('');
+    setIsCustomLocationOpen(false);
+    setCustomLocation(null);
   };
 
   const getStatusColor = (status: HealthStatus) => {
@@ -391,6 +406,72 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Farm / Holding Unit *
+              </label>
+              <select
+                value={newFarmId}
+                onChange={e => {
+                  setNewFarmId(e.target.value);
+                  setCustomLocation(null);
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+              >
+                {farms.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} ({f.villageName || f.villageId}, {f.districtName || f.districtId})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Farm Location Inheritance & Custom Override Section */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-slate-800">
+                  Animal Geographic Location (Pan-India)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomLocationOpen(!isCustomLocationOpen)}
+                className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <Edit3 className="w-3 h-3" />
+                {isCustomLocationOpen ? 'Use Farm Location' : 'Change Location'}
+              </button>
+            </div>
+
+            {!isCustomLocationOpen ? (
+              <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="font-semibold text-slate-500 block text-[10px] uppercase">Inherited from Farm:</span>
+                  <span className="font-bold text-slate-900">
+                    {(() => {
+                      const f = farms.find(farm => farm.id === newFarmId);
+                      return f ? `${f.villageName || f.villageId}, ${f.blockName || f.blockId}, ${f.districtName || f.districtId}, ${f.stateName || 'Maharashtra'}` : 'Location inherited from farm holding';
+                    })()}
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                  Farm Locked
+                </span>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-slate-200">
+                <IndiaLocationPicker
+                  value={customLocation}
+                  onChange={setCustomLocation}
+                  mode="FULL"
+                  title="Select Custom State, District, Block & Village"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">

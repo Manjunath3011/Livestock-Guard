@@ -1,4 +1,8 @@
-import { Disease, Symptom, DiseaseSymptomWeight, Vaccine, LocationHierarchy } from '../types';
+import { Disease, Symptom, DiseaseSymptomWeight, Vaccine, LocationHierarchy, DiseaseVaccineLink } from '../types';
+import { DISEASE_GUIDANCE_MAP } from './diseaseGuidanceData';
+import { ADDITIONAL_VACCINES, DISEASE_VACCINE_LINKS } from './vaccineLinksData';
+
+export { DISEASE_VACCINE_LINKS };
 
 export const SYMPTOMS_LIST: Symptom[] = [
   { id: 'sym_fever', name: 'High Fever / Hyperthermia', category: 'GENERAL', description: 'Body temperature substantially above normal (>103°F / 39.5°C)', severityScale: ['mild', 'moderate', 'severe'], iconName: 'Thermometer' },
@@ -33,7 +37,7 @@ export const SYMPTOMS_LIST: Symptom[] = [
   { id: 'sym_comb_cyanosis', name: 'Cyanotic Comb & Wattle / Swollen Head (Poultry)', category: 'RESPIRATORY', description: 'Dark purple discoloration of head comb, facial edema in birds', severityScale: ['severe'], iconName: 'Feather' }
 ];
 
-export const DISEASES_DATABASE: Disease[] = [
+const RAW_DISEASES_DATABASE: Omit<Disease, 'homeCareAllowed' | 'homeCareLevel' | 'supportiveCare' | 'supportiveCareSteps' | 'careWarnings' | 'thingsToAvoid' | 'emergencySigns' | 'veterinaryRequired' | 'emergencyGuidance' | 'vaccineAvailable' | 'primaryVaccineId' | 'vaccineScheduleReference' | 'farmerFriendlyExplanation' | 'references'>[] = [
   {
     id: 'dis_fmd',
     name: 'Foot-and-Mouth Disease',
@@ -1066,7 +1070,36 @@ export const DISEASE_SYMPTOM_MATRIX: DiseaseSymptomWeight[] = [
   { diseaseId: 'dis_orf', symptomId: 'sym_appetite_loss', importanceWeight: 3, typicality: 'COMMON' }
 ];
 
+export const DISEASES_DATABASE: Disease[] = RAW_DISEASES_DATABASE.map(d => {
+  const guidance = DISEASE_GUIDANCE_MAP[d.id] || {
+    homeCareAllowed: true,
+    homeCareLevel: 'LIMITED_SUPPORTIVE',
+    supportiveCare: 'Provide clean water, palatable soft feed, and quiet rest. Monitor vital signs closely.',
+    supportiveCareSteps: [
+      { title: 'Fresh Water & Rest', desc: 'Ensure clean drinking water and a sheltered resting area.', category: 'WATER' }
+    ],
+    careWarnings: ['Consult a licensed veterinarian for formal diagnostic assessment.'],
+    thingsToAvoid: ['Do NOT administer human medications without veterinary approval.'],
+    emergencySigns: ['High persistent fever, severe respiratory distress, sudden recumbency.'],
+    veterinaryRequired: true,
+    emergencyGuidance: 'Contact the nearest veterinary dispensary for clinical review.',
+    vaccineAvailable: false,
+    farmerFriendlyExplanation: `${d.name} is a livestock condition requiring veterinary oversight and supportive care.`,
+    references: {
+      sourceName: 'WOAH Terrestrial Manual',
+      authority: 'World Organisation for Animal Health',
+      lastReviewed: '2026-08-01'
+    }
+  };
+
+  return {
+    ...d,
+    ...guidance
+  };
+});
+
 export const VACCINES_LIST: Vaccine[] = [
+  ...ADDITIONAL_VACCINES,
   {
     id: 'vac_fmd_poly',
     name: 'Raksha-Ovac Polyvalent FMD Vaccine',

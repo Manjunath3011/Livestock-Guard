@@ -24,7 +24,7 @@ export const MortalityView: React.FC<MortalityViewProps> = ({
   const [affectedCount, setAffectedCount] = useState<number>(1);
   const [suspectedCause, setSuspectedCause] = useState('Anthrax (Sudden Peracute Hemorrhagic Death)');
   const [symptomNotes, setSymptomNotes] = useState('Dark unclotted blood from nostrils, sudden collapse.');
-  const [disposalMethod, setDisposalMethod] = useState<'BURIAL_WITH_LIME' | 'INCINERATION' | 'RENDERING_PLANT'>('BURIAL_WITH_LIME');
+  const [disposalMethod, setDisposalMethod] = useState<'BURIAL_WITH_LIME' | 'INCINERATION' | 'RENDERING'>('BURIAL_WITH_LIME');
   const [necropsyForbidden, setNecropsyForbidden] = useState(true);
 
   const handleReportMortality = (e: React.FormEvent) => {

@@ -3,6 +3,7 @@ export type Role =
   | 'FIELD_WORKER'
   | 'VETERINARIAN'
   | 'LABORATORY_STAFF'
+  | 'DIAGNOSTIC_LAB'
   | 'DISTRICT_OFFICIAL'
   | 'STATE_ADMIN'
   | 'SYSTEM_ADMIN';
@@ -51,6 +52,7 @@ export type SampleStatus =
 export type TestResult = 'PENDING' | 'POSITIVE' | 'NEGATIVE' | 'INCONCLUSIVE';
 
 export type OutbreakStatus =
+  | 'ACTIVE'
   | 'SUSPECTED'
   | 'INVESTIGATING'
   | 'CONFIRMED'
@@ -61,21 +63,166 @@ export type AlertPriority = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export type LanguageCode = 'en' | 'hi' | 'kn' | 'te';
 
+export type AccountStatus =
+  | 'PENDING_VERIFICATION'
+  | 'UNDER_REVIEW'
+  | 'MORE_INFORMATION_REQUIRED'
+  | 'VERIFIED'
+  | 'REJECTED'
+  | 'SUSPENDED';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   phone: string;
-  role: Role;
+  role: Role; // Active role
+  requestedRole?: Role;
+  accountStatus?: AccountStatus;
+  statusReason?: string;
+  registrationRequestId?: string;
   avatarUrl?: string;
   stateId: string;
   districtId: string;
   blockId?: string;
   villageId?: string;
+  village?: string;
   farmId?: string;
+  farmName?: string;
   assignedLaboratoryId?: string;
   licenseNumber?: string;
+  designation?: string;
+  department?: string;
+  employeeId?: string;
+  organizationName?: string;
+  isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
   preferredLanguage: LanguageCode;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface VerificationDocument {
+  id: string;
+  userId?: string;
+  requestId?: string;
+  documentType: 'GOV_ID' | 'VET_LICENSE' | 'LAB_ACCREDITATION' | 'OFFICE_ID' | 'APPOINTMENT_LETTER' | 'CERTIFICATE';
+  documentName: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  secureStorageReference: string;
+  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  uploadedAt: string;
+  reviewedAt?: string;
+  retentionExpiry: string;
+  previewUrl?: string;
+}
+
+export interface RegistrationRequest {
+  id: string; // e.g. LG-REG-849201
+  userId: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  requestedRole: Role;
+  accountTypeLabel: string;
+  status: AccountStatus;
+  stateId: string;
+  stateName: string;
+  districtId: string;
+  districtName: string;
+  blockName?: string;
+  villageName?: string;
+  preferredLanguage: LanguageCode;
+  
+  // Specific role schemas
+  farmDetails?: {
+    farmName?: string;
+    species: Species[];
+    animalCount: number;
+    locationAddress?: string;
+  };
+  fieldWorkerDetails?: {
+    organization: string;
+    employeeId?: string;
+    yearsOfExperience?: number;
+    areaOfOperation?: string;
+  };
+  vetDetails?: {
+    organization: string;
+    qualification: string;
+    regNumber: string;
+    councilAuthority: string;
+    regValidityDate?: string;
+  };
+  labDetails?: {
+    laboratoryName: string;
+    laboratoryType: string;
+    accreditationNumber?: string;
+    organization: string;
+    address: string;
+  };
+  officialDetails?: {
+    department: string;
+    designation: string;
+    employeeId: string;
+    officeAddress?: string;
+    directorate?: string;
+  };
+
+  isPhoneVerified: boolean;
+  isEmailVerified: boolean;
+  documents: VerificationDocument[];
+  submittedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewerName?: string;
+  reviewNotes?: string;
+}
+
+export interface IdentityVerification {
+  id: string;
+  userId: string;
+  verificationType: 'MOBILE_OTP' | 'GOV_ID' | 'OFFICIAL_EMAIL';
+  status: 'PENDING' | 'VERIFIED' | 'FAILED';
+  verifiedAt?: string;
+  verifiedBy?: string;
+  verificationReference: string;
+  createdAt: string;
+}
+
+export interface ProfessionalCredential {
+  id: string;
+  userId: string;
+  credentialType: 'VET_REGISTRATION' | 'LAB_ACCREDITATION' | 'PARA_VET_CERT' | 'OFFICIAL_ID';
+  registrationNumber: string;
+  issuingAuthority: string;
+  expiryDate?: string;
+  verificationStatus: AccountStatus;
+  documentReference?: string;
+}
+
+export interface OrganizationMembership {
+  id: string;
+  userId: string;
+  organizationId: string;
+  organizationName: string;
+  designation: string;
+  employeeId: string;
+  verificationStatus: AccountStatus;
+}
+
+export interface RegistrationAuditLog {
+  id: string;
+  userId: string;
+  action: 'REGISTRATION_SUBMITTED' | 'PHONE_OTP_VERIFIED' | 'DOCUMENT_UPLOADED' | 'STATUS_CHANGED' | 'ROLE_APPROVED' | 'ROLE_REJECTED' | 'INFO_REQUESTED';
+  targetType: string;
+  targetId: string;
+  timestamp: string;
+  actorName: string;
+  actorRole: string;
+  metadata?: Record<string, any>;
 }
 
 export interface LocationHierarchy {
@@ -98,9 +245,14 @@ export interface Farm {
   ownerName: string;
   phone: string;
   stateId: string;
+  stateName?: string;
   districtId: string;
+  districtName?: string;
   blockId: string;
+  blockName?: string;
   villageId: string;
+  villageName?: string;
+  pincode?: string;
   address: string;
   latitude: number;
   longitude: number;
@@ -137,6 +289,7 @@ export interface Animal {
   lastCheckedAt: string;
   vaccinationCount: number;
   activeCaseId?: string;
+  lactationCount?: number;
 }
 
 export interface Herd {
@@ -171,6 +324,60 @@ export interface Symptom {
   iconName: string;
 }
 
+export type HomeCareLevel =
+  | 'SAFE_SUPPORTIVE'
+  | 'LIMITED_SUPPORTIVE'
+  | 'VETERINARY_ONLY'
+  | 'EMERGENCY_ONLY'
+  | 'SUPPORTIVE_AND_VET';
+
+export interface SupportiveCareStep {
+  title: string;
+  desc: string;
+  icon?: string;
+  category?: 'WATER' | 'FEED' | 'ENVIRONMENT' | 'SEPARATION' | 'HYGIENE' | 'MONITORING';
+}
+
+export interface DiseaseReference {
+  sourceName: string;
+  sourceUrl?: string;
+  authority: string;
+  lastReviewed: string;
+}
+
+export interface DiseaseVaccineLink {
+  diseaseId: string;
+  vaccineId: string;
+  vaccineName: string;
+  species: Species[];
+  recommendedFor: string;
+  preventionRole: string;
+  routineOrOutbreak: 'ROUTINE' | 'OUTBREAK_RING' | 'BOTH';
+  minimumAgeMonths: number;
+  doseInformationReference: string;
+  scheduleReference: string;
+  boosterInformationReference: string;
+  contraindicationsReference: string[];
+  pregnancyNotes: string;
+  outbreakNotes: string;
+  geographicNotes: string;
+  authorityReference: string;
+  lastUpdated: string;
+}
+
+export interface FollowUpRecord {
+  id: string;
+  caseId: string;
+  animalId?: string;
+  animalTag?: string;
+  recordedAt: string;
+  timeframe: '24_HOURS' | '48_HOURS' | '7_DAYS' | 'CUSTOM';
+  statusUpdate: 'IMPROVING' | 'SAME' | 'GETTING_WORSE' | 'CRITICAL' | 'DECEASED';
+  notes?: string;
+  escalationTriggered?: boolean;
+  recordedBy: string;
+}
+
 export interface Disease {
   id: string;
   name: string;
@@ -199,6 +406,22 @@ export interface Disease {
   veterinaryGuidance: string;
   isolationPeriodDays: number;
   emergencyPriority: 'ROUTINE' | 'ELEVATED' | 'HIGH_EMERGENCY';
+
+  // Practical decision support additions
+  homeCareAllowed: boolean;
+  homeCareLevel: HomeCareLevel;
+  supportiveCare: string;
+  supportiveCareSteps: SupportiveCareStep[];
+  careWarnings: string[];
+  thingsToAvoid: string[];
+  emergencySigns: string[];
+  veterinaryRequired: boolean;
+  emergencyGuidance: string;
+  vaccineAvailable: boolean;
+  primaryVaccineId?: string;
+  vaccineScheduleReference?: string;
+  farmerFriendlyExplanation: string;
+  references: DiseaseReference;
 }
 
 export interface DiseaseSymptomWeight {
@@ -227,6 +450,25 @@ export interface SuspectedDiseaseMatch {
   keyDifferentiators: string[];
   notifiable: boolean;
   zoonotic: boolean;
+
+  // Rich Clinical Guidance Fields
+  supportiveCareAvailable?: boolean;
+  homeCareLevel?: HomeCareLevel;
+  supportiveCareSummary?: string;
+  supportiveCareSteps?: SupportiveCareStep[];
+  careWarnings?: string[];
+  thingsToAvoid?: string[];
+  emergencySigns?: string[];
+  vaccineAvailable?: boolean;
+  vaccineId?: string;
+  vaccineName?: string;
+  vaccineSchedule?: string;
+  vaccinationStatusForAnimal?: 'UP_TO_DATE' | 'DUE_SOON' | 'OVERDUE' | 'NO_RECORD';
+  vaccineGuidanceNote?: string;
+  veterinaryUrgency?: 'ROUTINE' | 'MODERATE' | 'HIGH' | 'EMERGENCY';
+  laboratoryConfirmation?: boolean;
+  farmerFriendlyExplanation?: string;
+  references?: DiseaseReference;
 }
 
 export interface RecommendedAdvisory {
@@ -237,6 +479,48 @@ export interface RecommendedAdvisory {
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   targetActor: 'FARMER' | 'VETERINARIAN' | 'FIELD_WORKER' | 'DISTRICT_OFFICIAL';
   timeframe: string;
+}
+
+export interface TemporaryAnimal {
+  id: string;
+  temporaryTag: string; // e.g. TEMP-COW-0024
+  species: Species;
+  breed: string;
+  ageYears: number;
+  ageStage?: 'CALF_KID_LAMB' | 'GROWER_HEIFER' | 'ADULT' | 'SENIOR';
+  sex: 'MALE' | 'FEMALE';
+  pregnancyStatus: 'NOT_PREGNANT' | 'PREGNANT' | 'LACTATING' | 'DRY' | 'NOT_APPLICABLE';
+  ownerId: string;
+  ownerName: string;
+  ownerPhone: string;
+  farmId: string;
+  farmName: string;
+  herdId?: string;
+  herdName?: string;
+  groupSize: 'INDIVIDUAL' | 'SMALL_GROUP' | 'HERD_FLOCK';
+  stateId: string;
+  districtId: string;
+  blockId: string;
+  villageId: string;
+  villageName: string;
+  latitude: number;
+  longitude: number;
+  createdAt: string;
+  isFormallyRegistered?: boolean;
+  permanentTagNumber?: string;
+  permanentAnimalId?: string;
+}
+
+export interface HistoricalCaseLink {
+  historicalCaseId: string;
+  historicalCaseNumber: string;
+  caseDate: string;
+  species: Species;
+  reportedSymptoms: string[];
+  suspectedCondition?: string;
+  status: CaseStatus;
+  relationshipType: 'SAME_HERD_ONGOING_CLUSTER' | 'RECURRENCE' | 'SUSPECTED_SPREAD' | 'UNLINKED_NEW_ISSUE';
+  notes?: string;
 }
 
 export interface AuditLogEntry {
@@ -252,8 +536,14 @@ export interface AuditLogEntry {
 export interface Case {
   id: string;
   caseNumber: string;
+  animalStatus?: 'REGISTERED' | 'UNTAGGED';
   animalId?: string;
   animalTag?: string;
+  temporaryAnimalId?: string;
+  temporaryTag?: string;
+  untaggedAnimalProfile?: Partial<TemporaryAnimal>;
+  historicalCaseId?: string;
+  historicalCaseLink?: HistoricalCaseLink;
   herdId?: string;
   herdName?: string;
   species: Species;
@@ -286,6 +576,7 @@ export interface Case {
   priority: 'ROUTINE' | 'URGENT' | 'EMERGENCY';
   sampleIds?: string[];
   treatmentIds?: string[];
+  followUpRecords?: FollowUpRecord[];
   createdAt: string;
   updatedAt: string;
   auditTrail: AuditLogEntry[];
@@ -392,6 +683,7 @@ export interface Outbreak {
   stateName: string;
   districtName: string;
   primaryVillage: string;
+  villageName?: string;
   latitude: number;
   longitude: number;
   radiusKm: number;
@@ -401,6 +693,8 @@ export interface Outbreak {
   totalCases: number;
   totalDeaths: number;
   affectedAnimalCount: number;
+  totalAffected?: number;
+  ringVaccinationDoses?: number;
   containmentMeasures: string[];
   caseIds: string[];
   declaredBy: string;
@@ -459,6 +753,7 @@ export interface WeatherData {
   vectorRiskIndex: 'LOW' | 'MODERATE' | 'HIGH' | 'EXTREME';
   thermalStressIndex: 'NORMAL' | 'ALERT' | 'DANGER' | 'EMERGENCY';
   historicalCorrelationInsight: string;
+  forecastAlert?: string;
 }
 
 export interface RiskCalculationResult {
@@ -474,10 +769,56 @@ export interface RiskCalculationResult {
   suspectedDiseases: SuspectedDiseaseMatch[];
   contributingFactors: string[];
   recommendedActions: RecommendedAdvisory[];
+  supportiveCare: SupportiveCareStep[];
+  thingsToAvoid: string[];
+  vaccinationGuidance: string[];
+  preventiveActions: string[];
+  emergencySigns: string[];
   requiresVeterinaryReview: boolean;
+  requiresLabConfirmation: boolean;
   outbreakSignal: boolean;
   nearbyCasesCount: number;
   disclaimer: string;
+}
+
+export interface FieldVisit {
+  id: string;
+  visitCode: string;
+  caseId?: string;
+  farmId: string;
+  farmName: string;
+  villageName: string;
+  farmerName: string;
+  farmerPhone: string;
+  scheduledTime: string;
+  priority: 'ROUTINE' | 'MODERATE' | 'HIGH' | 'EMERGENCY';
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  assignedWorkerId: string;
+  assignedWorkerName: string;
+  purpose: 'SYMPTOM_INVESTIGATION' | 'VACCINATION_DRIVE' | 'SAMPLE_COLLECTION' | 'MORTALITY_VERIFICATION' | 'ROUTINE_CHECK';
+  notes?: string;
+  completedAt?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface Advisory {
+  id: string;
+  code: string;
+  title: string;
+  level: 'DISTRICT' | 'STATE' | 'NATIONAL';
+  jurisdiction: string;
+  diseaseTarget?: string;
+  speciesTarget?: Species[];
+  issuedBy: string;
+  issuedRole: Role;
+  issuedAt: string;
+  priority: 'INFO' | 'WARNING' | 'EMERGENCY';
+  content: string;
+  biosecurityDirectives: string[];
+  containmentRadiusKm?: number;
+  activeUntil?: string;
+  isActive: boolean;
 }
 
 export interface OfflineSyncItem {
@@ -510,3 +851,5 @@ export interface SystemConfig {
     critical: number; // 81
   };
 }
+
+export * from './location';

@@ -3,7 +3,9 @@ import { Herd, Farm, User, Species } from '../../types';
 import { store } from '../../services/store';
 import { RiskBadge } from '../common/RiskBadge';
 import { Modal } from '../common/Modal';
-import { Layers, PlusCircle, Users, MapPin, Shield, CheckCircle2 } from 'lucide-react';
+import { IndiaLocationPicker } from '../common/IndiaLocationPicker';
+import { NormalizedLocationSelection } from '../../types/location';
+import { Layers, PlusCircle, Users, MapPin, Shield, CheckCircle2, Edit3 } from 'lucide-react';
 
 interface HerdsViewProps {
   herds: Herd[];
@@ -17,12 +19,19 @@ export const HerdsView: React.FC<HerdsViewProps> = ({ herds, farms, currentUser 
   const [species, setSpecies] = useState<Species>('Cattle');
   const [animalCount, setAnimalCount] = useState<number>(25);
   const [selectedFarmId, setSelectedFarmId] = useState<string>(farms[0]?.id || 'farm_01');
+  const [isCustomLocationOpen, setIsCustomLocationOpen] = useState(false);
+  const [customLocation, setCustomLocation] = useState<NormalizedLocationSelection | null>(null);
 
   const handleCreateHerd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!herdName.trim()) return;
 
     const farm = farms.find(f => f.id === selectedFarmId);
+    const loc = customLocation || (farm ? {
+      stateId: farm.stateId,
+      districtId: farm.districtId,
+      villageId: farm.villageId
+    } : null);
 
     store.registerHerd({
       name: herdName.trim(),
@@ -38,13 +47,15 @@ export const HerdsView: React.FC<HerdsViewProps> = ({ herds, farms, currentUser 
       farmId: selectedFarmId,
       ownerId: currentUser.id,
       ownerName: currentUser.name,
-      stateId: farm?.stateId || 'st_mah',
-      districtId: farm?.districtId || 'dt_pune',
-      villageId: farm?.villageId || 'vl_malegaon_bk'
+      stateId: loc?.stateId || farm?.stateId || 'st_in_mh',
+      districtId: loc?.districtId || farm?.districtId || 'dt_in_mh_pune',
+      villageId: loc?.villageId || farm?.villageId || 'vl_in_mh_pune_baramati_malegaon_bk'
     });
 
     setIsCreateModalOpen(false);
     setHerdName('');
+    setIsCustomLocationOpen(false);
+    setCustomLocation(null);
   };
 
   return (
@@ -164,6 +175,70 @@ export const HerdsView: React.FC<HerdsViewProps> = ({ herds, farms, currentUser 
               onChange={e => setAnimalCount(parseInt(e.target.value) || 1)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Farm / Holding Unit *</label>
+            <select
+              value={selectedFarmId}
+              onChange={e => {
+                setSelectedFarmId(e.target.value);
+                setCustomLocation(null);
+              }}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+            >
+              {farms.map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.name} ({f.villageName || f.villageId}, {f.districtName || f.districtId})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Location Details */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-slate-800">
+                  Herd Location
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomLocationOpen(!isCustomLocationOpen)}
+                className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <Edit3 className="w-3 h-3" />
+                {isCustomLocationOpen ? 'Use Farm Location' : 'Change Location'}
+              </button>
+            </div>
+
+            {!isCustomLocationOpen ? (
+              <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="font-semibold text-slate-500 block text-[10px] uppercase">Inherited from Farm:</span>
+                  <span className="font-bold text-slate-900">
+                    {(() => {
+                      const f = farms.find(farm => farm.id === selectedFarmId);
+                      return f ? `${f.villageName || f.villageId}, ${f.districtName || f.districtId}, ${f.stateName || 'Maharashtra'}` : 'Location inherited from farm';
+                    })()}
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                  Farm Locked
+                </span>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-slate-200">
+                <IndiaLocationPicker
+                  value={customLocation}
+                  onChange={setCustomLocation}
+                  mode="FULL"
+                  title="Select Custom State, District & Village"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">

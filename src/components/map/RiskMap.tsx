@@ -499,7 +499,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
                 <div className="mt-2 bg-slate-800/80 p-2 rounded-lg text-[11px] text-slate-300">
                   <p className="font-semibold text-emerald-300 mb-1">Observed Symptoms:</p>
                   <p className="line-clamp-2">
-                    {activeItem.data.symptoms.map((s: any) => s.symptomName).join(', ')}
+                    {(activeItem.data.symptoms || []).map((s: any) => typeof s === 'string' ? s : s?.symptomName || s?.symptomId || 'Symptom').join(', ')}
                   </p>
                 </div>
               </>

@@ -78,6 +78,173 @@ export const TestingCenterView: React.FC = () => {
         <QuickScenarioLauncher onScenarioTriggered={handleTrigger} />
       </div>
 
+      {/* End-to-End Multi-Role Workflow Journey */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-emerald-600" />
+              End-to-End Multi-Role Disease Escalation Chain
+            </h3>
+            <p className="text-xs text-slate-500">
+              Execute each step of the real-world livestock surveillance protocol across all 6 stakeholder personas.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Step 1: Farmer */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:border-emerald-300 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  Step 1 • Farmer
+                </span>
+                <span className="text-base">🌾</span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-900 mt-2">Farmer Clinical Intake</h4>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Ramesh Patil notices vesicular foot lesions and excessive drooling in his Jersey cow (IND-MH-PUN-001).
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                store.switchRole('FARMER');
+                handleTrigger('Switched to Farmer & Viewed Active Farm Health Hub');
+              }}
+              className="mt-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-3 rounded-lg shadow-xs transition-all text-center"
+            >
+              Simulate Step 1 as Farmer
+            </button>
+          </div>
+
+          {/* Step 2: Field Worker */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:border-cyan-300 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800">
+                  Step 2 • Para-Vet
+                </span>
+                <span className="text-base">🛵</span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-900 mt-2">Beat Duty & Swab Collection</h4>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Para-Vet Suresh Shinde arrives on motorbike, inspects herd, completes field visit, and packages cold chain swab.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                store.switchRole('FIELD_WORKER');
+                handleTrigger('Switched to Field Worker & Loaded Assigned Beat Duty');
+              }}
+              className="mt-3 text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white py-1.5 px-3 rounded-lg shadow-xs transition-all text-center"
+            >
+              Simulate Step 2 as Para-Vet
+            </button>
+          </div>
+
+          {/* Step 3: Veterinarian */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:border-teal-300 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                  Step 3 • Veterinarian
+                </span>
+                <span className="text-base">🩺</span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-900 mt-2">Clinical Triage & Lab Order</h4>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Dr. Ananya reviews symptoms, sets Presumptive FMD diagnosis, orders urgent RT-PCR test, and prescribes isolation.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                store.switchRole('VETERINARIAN');
+                handleTrigger('Switched to Veterinarian & Evaluated Diagnostic Triage');
+              }}
+              className="mt-3 text-xs font-bold bg-teal-600 hover:bg-teal-500 text-white py-1.5 px-3 rounded-lg shadow-xs transition-all text-center"
+            >
+              Simulate Step 3 as Doctor
+            </button>
+          </div>
+
+          {/* Step 4: Laboratory */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:border-purple-300 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                  Step 4 • Diagnostic Lab
+                </span>
+                <span className="text-base">🧪</span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-900 mt-2">RT-PCR Positive Verification</h4>
+              <p className="text-[11px] text-slate-500 mt-1">
+                DIAL Pune extracts viral RNA, amplifies target gene (Ct: 19.8), and officially certifies POSITIVE outcome.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                store.switchRole('LABORATORY_STAFF');
+                handleTrigger('Switched to Diagnostic Lab & Accessed Molecular Bench');
+              }}
+              className="mt-3 text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white py-1.5 px-3 rounded-lg shadow-xs transition-all text-center"
+            >
+              Simulate Step 4 as Lab Pathologist
+            </button>
+          </div>
+
+          {/* Step 5: District Official */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:border-amber-300 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                  Step 5 • District AH
+                </span>
+                <span className="text-base">🏛️</span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-900 mt-2">5km Containment Zone & RRU</h4>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Joint Director establishes Baramati quarantine ring, bans livestock transport, and issues taluka advisory.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                store.switchRole('DISTRICT_OFFICIAL');
+                handleTrigger('Switched to District AH Officer & Monitored Containment');
+              }}
+              className="mt-3 text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white py-1.5 px-3 rounded-lg shadow-xs transition-all text-center"
+            >
+              Simulate Step 5 as District Officer
+            </button>
+          </div>
+
+          {/* Step 6: State Admin */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:border-blue-300 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                  Step 6 • State Directorate
+                </span>
+                <span className="text-base">📊</span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-900 mt-2">Statewide Vaccine Reserve</h4>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Directorate tracks 36-district epidemic curve and dispatches 50,000 homologous vaccine buffer doses to Pune.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                store.switchRole('STATE_ADMIN');
+                handleTrigger('Switched to State Directorate & Reviewed 36 Districts');
+              }}
+              className="mt-3 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white py-1.5 px-3 rounded-lg shadow-xs transition-all text-center"
+            >
+              Simulate Step 6 as State Director
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Offline and Sync Diagnostic Controls */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-3">

@@ -7,9 +7,10 @@ import {
   RecommendedAdvisory,
   SystemConfig,
   Case,
-  Outbreak
+  Outbreak,
+  SupportiveCareStep
 } from '../types';
-import { DISEASES_DATABASE, DISEASE_SYMPTOM_MATRIX } from '../data/knowledgeBase';
+import { DISEASES_DATABASE, DISEASE_SYMPTOM_MATRIX, DISEASE_VACCINE_LINKS } from '../data/knowledgeBase';
 
 export const DEFAULT_CONFIG: SystemConfig = {
   riskWeights: {
@@ -121,6 +122,29 @@ export function assessLivestockRisk(params: {
       if (disease.zoonotic) keyDiffs.push('Zoonotic transmission risk to humans');
       if (disease.emergencyPriority === 'HIGH_EMERGENCY') keyDiffs.push('High-emergency veterinary priority');
 
+      const matchingVaccineLink = DISEASE_VACCINE_LINKS.find(v => v.diseaseId === disease.id);
+
+      // Determine vaccination guidance note for this specific disease
+      let vacGuidanceNote: string;
+      if (!disease.vaccineAvailable) {
+        vacGuidanceNote = 'No routinely applicable commercial vaccine is currently available for this condition. Prevention focuses strictly on biosecurity, vector control, and movement isolation.';
+      } else if (params.vaccinationStatus === 'OVERDUE') {
+        vacGuidanceNote = 'Vaccination for this condition is overdue. Note: vaccines prevent future infections in healthy stock and do NOT treat an actively sick animal. Schedule immunization under veterinary guidance once the animal recovers.';
+      } else if (params.vaccinationStatus === 'UNVACCINATED') {
+        vacGuidanceNote = 'No prior vaccination recorded. Ensure healthy herd members receive ring or routine vaccination under veterinary supervision.';
+      } else {
+        vacGuidanceNote = 'Vaccination history is recorded. Continue regular booster schedules as recommended by your veterinarian.';
+      }
+
+      const urgency: 'ROUTINE' | 'MODERATE' | 'HIGH' | 'EMERGENCY' =
+        disease.emergencyPriority === 'HIGH_EMERGENCY' || disease.homeCareLevel === 'EMERGENCY_ONLY'
+          ? 'EMERGENCY'
+          : disease.severity === 'CRITICAL'
+          ? 'HIGH'
+          : disease.severity === 'HIGH'
+          ? 'MODERATE'
+          : 'ROUTINE';
+
       diseaseMatches.push({
         diseaseId: disease.id,
         diseaseName: disease.name,
@@ -130,7 +154,29 @@ export function assessLivestockRisk(params: {
         matchingSymptoms: matchingSymptomNames,
         keyDifferentiators: keyDiffs,
         notifiable: disease.notifiable,
-        zoonotic: disease.zoonotic
+        zoonotic: disease.zoonotic,
+        supportiveCareAvailable: disease.homeCareAllowed,
+        homeCareLevel: disease.homeCareLevel,
+        supportiveCareSummary: disease.supportiveCare,
+        supportiveCareSteps: disease.supportiveCareSteps || [],
+        careWarnings: disease.careWarnings || [],
+        thingsToAvoid: disease.thingsToAvoid || [],
+        emergencySigns: disease.emergencySigns || [],
+        vaccineAvailable: disease.vaccineAvailable,
+        vaccineId: disease.primaryVaccineId,
+        vaccineName: matchingVaccineLink?.vaccineName || (disease.vaccineAvailable ? 'Authorized Veterinary Vaccine' : undefined),
+        vaccineSchedule: disease.vaccineScheduleReference,
+        vaccinationStatusForAnimal:
+          params.vaccinationStatus === 'UP_TO_DATE'
+            ? 'UP_TO_DATE'
+            : params.vaccinationStatus === 'OVERDUE'
+            ? 'OVERDUE'
+            : 'NO_RECORD',
+        vaccineGuidanceNote: vacGuidanceNote,
+        veterinaryUrgency: urgency,
+        laboratoryConfirmation: disease.notifiable || disease.zoonotic,
+        farmerFriendlyExplanation: disease.farmerFriendlyExplanation,
+        references: disease.references
       });
     }
   }
@@ -139,6 +185,7 @@ export function assessLivestockRisk(params: {
   diseaseMatches.sort((a, b) => b.screeningScore - a.screeningScore);
   const topSuspected = diseaseMatches.slice(0, 4);
   const topMatchScore = topSuspected.length > 0 ? topSuspected[0].screeningScore : 10;
+  const primaryMatch = topSuspected[0];
 
   // 2. Nearby Cases & Cluster Detection
   let nearbyCasesCount = 0;
@@ -254,7 +301,6 @@ export function assessLivestockRisk(params: {
   // Recommended Actions / Advisories
   const recommendedActions: RecommendedAdvisory[] = [];
 
-  // Always Isolation / Biosecurity
   recommendedActions.push({
     category: 'ISOLATION / MOVEMENT CONTROL',
     title: 'Immediate Physical Quarantine',
@@ -311,6 +357,77 @@ export function assessLivestockRisk(params: {
 
   const outbreakSignal = (nearbyCasesCount >= cfg.clusterThresholds.minCases && topMatchScore >= 70) || inActiveOutbreakZone || dead >= 2;
 
+  // Build aggregated supportive care steps from top suspected condition or fallback
+  const supportiveCareSteps: SupportiveCareStep[] = primaryMatch?.supportiveCareSteps?.length
+    ? primaryMatch.supportiveCareSteps
+    : [
+        {
+          title: 'Clean Water & Nutrition Support',
+          desc: 'Ensure constant access to clean, cool water and easily chewable palatable soft feed.',
+          icon: 'Droplets',
+          category: 'WATER'
+        },
+        {
+          title: 'Shelter & Separate Housing',
+          desc: 'House the animal in a dedicated, draft-free, shaded stall with clean, dry straw bedding.',
+          icon: 'Shield',
+          category: 'ENVIRONMENT'
+        },
+        {
+          title: 'Close Observation',
+          desc: 'Check temperature and observe breathing twice daily. Note changes in demeanor or appetite.',
+          icon: 'Activity',
+          category: 'MONITORING'
+        }
+      ];
+
+  const thingsToAvoid: string[] = primaryMatch?.thingsToAvoid?.length
+    ? primaryMatch.thingsToAvoid
+    : [
+        'Do NOT give human medicines (paracetamol, ibuprofen) without veterinary prescription.',
+        'Do NOT force-feed or drench animals that are having difficulty swallowing.',
+        'Do NOT allow sick animals to mix in communal pastures or shared watering ponds.',
+        'Do NOT delay contacting a qualified veterinary practitioner.'
+      ];
+
+  const vaccinationGuidance: string[] = [
+    primaryMatch?.vaccineGuidanceNote ||
+      (primaryMatch?.vaccineAvailable
+        ? `Vaccination against ${primaryMatch.diseaseName} is recommended for prevention in healthy livestock. Vaccines are not a treatment for already infected animals.`
+        : 'No routine vaccine is available for this condition; prevention relies on strict biosecurity and movement restriction.')
+  ];
+
+  if (primaryMatch?.vaccineSchedule) {
+    vaccinationGuidance.push(`Standard Schedule: ${primaryMatch.vaccineSchedule}`);
+  }
+
+  const preventiveActions: string[] = [
+    'Quarantine all newly purchased or returned livestock for at least 14 days before herd integration.',
+    'Spray animal sheds regularly with veterinary-approved fly and tick repellents.',
+    'Disinfect footwear and vehicle wheels before entering animal enclosures.',
+    'Provide clean, elevated water troughs and avoid stagnant monsoon puddle drinking.'
+  ];
+
+  const emergencySigns: string[] = primaryMatch?.emergencySigns?.length
+    ? primaryMatch.emergencySigns
+    : [
+        'Sudden acute collapse or severe inability to stand (downer animal)',
+        'Severe breathing distress, open-mouth gasping, or tongue protrusion',
+        'High persistent fever above 105°F with muscle shivering',
+        'Uncontrolled bloody diarrhea or dark blood from orifices'
+      ];
+
+  const requiresVet =
+    level === 'HIGH' ||
+    level === 'CRITICAL' ||
+    hasSuddenDeath ||
+    primaryMatch?.veterinaryUrgency === 'EMERGENCY' ||
+    primaryMatch?.veterinaryUrgency === 'HIGH';
+
+  const requiresLab =
+    level === 'CRITICAL' ||
+    (primaryMatch ? primaryMatch.notifiable || primaryMatch.zoonotic : false);
+
   return {
     score: clampedScore,
     level,
@@ -324,9 +441,16 @@ export function assessLivestockRisk(params: {
     suspectedDiseases: topSuspected,
     contributingFactors,
     recommendedActions,
-    requiresVeterinaryReview: level === 'HIGH' || level === 'CRITICAL' || hasSuddenDeath,
+    supportiveCare: supportiveCareSteps,
+    thingsToAvoid,
+    vaccinationGuidance,
+    preventiveActions,
+    emergencySigns,
+    requiresVeterinaryReview: requiresVet,
+    requiresLabConfirmation: requiresLab,
     outbreakSignal,
     nearbyCasesCount,
-    disclaimer: 'Decision-Support Disclaimer: This calculation is an automated screening risk assessment and does not constitute a definitive medical diagnosis. A licensed veterinary officer must perform physical evaluation and laboratory verification.'
+    disclaimer:
+      'Decision-Support Disclaimer: This calculation is an automated screening risk assessment and does not constitute a definitive medical diagnosis. A licensed veterinary officer must perform physical evaluation and laboratory verification.'
   };
 }

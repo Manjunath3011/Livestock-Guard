@@ -11,7 +11,9 @@ import {
   MortalityReport,
   Alert,
   WeatherData,
-  Species
+  Species,
+  FieldVisit,
+  Advisory
 } from '../types';
 import { LOCATION_DATA } from './knowledgeBase';
 
@@ -1186,3 +1188,130 @@ export const HISTORICAL_MONTHLY_TRENDS = [
   { month: 'Jul 2026', cases: 74, deaths: 9, fmd: 15, lsd: 24, hs: 22, ppr: 7, anthrax: 1, bq: 5, rainfallMm: 240, avgTempC: 27 },
   { month: 'Aug 2026', cases: 66, deaths: 7, fmd: 18, lsd: 22, hs: 14, ppr: 9, anthrax: 1, bq: 2, rainfallMm: 195, avgTempC: 28 }
 ];
+
+export const SEED_FIELD_VISITS: FieldVisit[] = [
+  {
+    id: 'vst_01',
+    visitCode: 'VST-2026-0841',
+    caseId: 'cas_01',
+    farmId: 'farm_01',
+    farmName: 'Patil Progressive Dairy Farm',
+    villageName: 'Malegaon Budruk',
+    farmerName: 'Ramesh Patil',
+    farmerPhone: '+91 98220 11223',
+    scheduledTime: '08:30 AM',
+    priority: 'HIGH',
+    status: 'IN_PROGRESS',
+    assignedWorkerId: 'usr_field_worker_1',
+    assignedWorkerName: 'Sunita Gaikwad',
+    purpose: 'SYMPTOM_INVESTIGATION',
+    notes: 'Severe oral vesicle rupture and excessive drooling reported in 3 HF crossbred cows.',
+    latitude: 18.1524,
+    longitude: 74.5768
+  },
+  {
+    id: 'vst_02',
+    visitCode: 'VST-2026-0842',
+    caseId: 'cas_02',
+    farmId: 'farm_02',
+    farmName: 'Gaikwad Goat & Sheep Breeding Center',
+    villageName: 'Shirsuphal',
+    farmerName: 'Tukaram Gaikwad',
+    farmerPhone: '+91 98221 44556',
+    scheduledTime: '10:30 AM',
+    priority: 'MODERATE',
+    status: 'SCHEDULED',
+    assignedWorkerId: 'usr_field_worker_1',
+    assignedWorkerName: 'Sunita Gaikwad',
+    purpose: 'SAMPLE_COLLECTION',
+    notes: 'Collect nasal swab specimens for PPR serological confirmation.',
+    latitude: 18.2341,
+    longitude: 74.5213
+  },
+  {
+    id: 'vst_03',
+    visitCode: 'VST-2026-0843',
+    farmId: 'farm_01',
+    farmName: 'Patil Progressive Dairy Farm',
+    villageName: 'Malegaon Budruk',
+    farmerName: 'Ramesh Patil',
+    farmerPhone: '+91 98220 11223',
+    scheduledTime: '02:00 PM',
+    priority: 'ROUTINE',
+    status: 'SCHEDULED',
+    assignedWorkerId: 'usr_field_worker_1',
+    assignedWorkerName: 'Sunita Gaikwad',
+    purpose: 'VACCINATION_DRIVE',
+    notes: 'Booster ring vaccination drive for 15 in-contact cattle.',
+    latitude: 18.1524,
+    longitude: 74.5768
+  },
+  {
+    id: 'vst_04',
+    visitCode: 'VST-2026-0844',
+    farmId: 'farm_03',
+    farmName: 'Krishna Valley Cattle Farm',
+    villageName: 'Vithalwadi',
+    farmerName: 'Mahadev Jadhav',
+    farmerPhone: '+91 98225 77889',
+    scheduledTime: '04:30 PM',
+    priority: 'HIGH',
+    status: 'SCHEDULED',
+    assignedWorkerId: 'usr_field_worker_1',
+    assignedWorkerName: 'Sunita Gaikwad',
+    purpose: 'MORTALITY_VERIFICATION',
+    notes: 'Inspect carcass disposal and soil decontamination following peracute mortality.',
+    latitude: 17.2891,
+    longitude: 74.1812
+  }
+];
+
+export const SEED_ADVISORIES: Advisory[] = [
+  {
+    id: 'adv_01',
+    code: 'ADV-PUN-2026-004',
+    title: 'District Biosecurity Advisory: Foot-and-Mouth Disease (FMD) Precautionary Ring Containment',
+    level: 'DISTRICT',
+    jurisdiction: 'Pune District (Baramati & Daund Blocks)',
+    diseaseTarget: 'Foot-and-Mouth Disease (FMD)',
+    speciesTarget: ['Cattle', 'Buffalo', 'Goat', 'Sheep'],
+    issuedBy: 'Dr. Rajeshwar Sharma, Joint Director (AH)',
+    issuedRole: 'DISTRICT_OFFICIAL',
+    issuedAt: '2026-08-25T10:00:00Z',
+    priority: 'WARNING',
+    content: 'Following localized FMD symptom spikes in Baramati block, all livestock movements, weekly cattle fairs (Shandi), and inter-village grazing are suspended within a 5 km radius.',
+    biosecurityDirectives: [
+      'Disinfect farm entrance footbaths with 4% Sodium Carbonate solution daily',
+      'Isolate all salivating and limping animals immediately with separate feeding troughs',
+      'Report any new oral blister cases to the nearest Veterinary Polyclinic within 2 hours',
+      'Mandatory ring vaccination within 10 km containment perimeter'
+    ],
+    containmentRadiusKm: 5,
+    activeUntil: '2026-09-10',
+    isActive: true
+  },
+  {
+    id: 'adv_02',
+    code: 'ADV-MAH-2026-012',
+    title: 'Statewide Directorate Advisory: Monsoon Vector-Borne Pathogen Surveillance & Lumpy Skin Disease Preparedness',
+    level: 'STATE',
+    jurisdiction: 'State of Maharashtra (All 36 Districts)',
+    diseaseTarget: 'Lumpy Skin Disease (LSD) & Black Quarter',
+    speciesTarget: ['Cattle', 'Buffalo'],
+    issuedBy: 'Smt. Vandana Hegde, IAS (Animal Husbandry Commissioner)',
+    issuedRole: 'STATE_ADMIN',
+    issuedAt: '2026-08-20T09:30:00Z',
+    priority: 'INFO',
+    content: 'Due to active monsoon rainfall and high vector density, all district veterinary officers must maintain 100% goat-pox vaccine buffer stocks and deploy weekly vector fogging around dairy clusters.',
+    biosecurityDirectives: [
+      'Maintain continuous cold chain storage (+2°C to +8°C) for homologous vaccine vials',
+      'Ensure 100% ear-tagging and recording of vaccinated bovine stock in digital portal',
+      'Intensify anti-larval spraying and organic fly-repellent smoke in cattle sheds',
+      'Fast-track molecular RT-PCR testing of suspected skin nodule biopsies at DIAL Pune'
+    ],
+    containmentRadiusKm: 0,
+    activeUntil: '2026-09-30',
+    isActive: true
+  }
+];
+

@@ -244,9 +244,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* 4. "YOUR CURRENT HEALTH RISK" Panel */}
       <div className={`rounded-3xl p-6 sm:p-8 border shadow-md transition-all ${
-        regionalRisk.level === 'HIGH' || regionalRisk.level === 'CRITICAL'
+        (regionalRisk.level as string) === 'HIGH' || (regionalRisk.level as string) === 'CRITICAL'
           ? 'bg-rose-50/90 border-rose-200 text-rose-950'
-          : regionalRisk.level === 'MODERATE'
+          : (regionalRisk.level as string) === 'MODERATE'
           ? 'bg-amber-50/90 border-amber-200 text-amber-950'
           : 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
       }`}>
