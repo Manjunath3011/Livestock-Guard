@@ -1,5 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Case, Outbreak, MortalityReport, Species, RiskLevel } from '../../types';
+import { Case, Outbreak, MortalityReport, Species, RiskLevel, User, LabSample } from '../../types';
+import {
+  HotspotCluster,
+  HotspotRiskTier,
+  DiseaseActivityClassification,
+  DiseaseActivityTrend,
+  SurveillanceTimeWindow
+} from '../../types/gis';
 import { RiskBadge } from '../common/RiskBadge';
 import { CaseStatusBadge } from '../common/CaseStatusBadge';
 import {
@@ -16,13 +23,28 @@ import {
   X,
   MapPin,
   Calendar,
-  Users
+  Users,
+  Clock,
+  Flame,
+  Sparkles,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Activity,
+  Play,
+  RotateCcw,
+  ShieldAlert
 } from 'lucide-react';
+import { GISHotspotEngine } from '../../services/GISHotspotEngine';
+import { HotspotDetailsPanel } from './HotspotDetailsPanel';
+import { store } from '../../services/store';
 
 interface RiskMapProps {
-  cases: Case[];
-  outbreaks: Outbreak[];
+  cases?: Case[];
+  outbreaks?: Outbreak[];
   mortalities?: MortalityReport[];
+  labSamples?: LabSample[];
+  currentUser?: User | null;
   selectedCaseId?: string;
   onSelectCase?: (caseId: string) => void;
   height?: string;
@@ -32,11 +54,16 @@ export const RiskMap: React.FC<RiskMapProps> = ({
   cases = [],
   outbreaks = [],
   mortalities = [],
+  labSamples = [],
+  currentUser,
   selectedCaseId,
   onSelectCase,
   height = 'h-[580px]'
 }) => {
+  const activeUser = currentUser || store.getCurrentUser();
+
   // Layer toggles
+  const [showHotspots, setShowHotspots] = useState(true);
   const [showCases, setShowCases] = useState(true);
   const [showOutbreaks, setShowOutbreaks] = useState(true);
   const [showMortalities, setShowMortalities] = useState(true);
@@ -44,9 +71,13 @@ export const RiskMap: React.FC<RiskMapProps> = ({
   const [showVetCenters, setShowVetCenters] = useState(true);
   const [showDiagnosticLabs, setShowDiagnosticLabs] = useState(true);
 
-  // Filters
+  // Surveillance Filters
+  const [timeWindow, setTimeWindow] = useState<SurveillanceTimeWindow>('ALL');
   const [speciesFilter, setSpeciesFilter] = useState<string>('ALL');
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
+
+  // Demo Scenarios Switcher
+  const [demoScenario, setDemoScenario] = useState<'LIVE' | 'fmd_surge' | 'ppr_cluster' | 'lsd_vector'>('LIVE');
 
   // Zoom and Center State
   const [zoomLevel, setZoomLevel] = useState<number>(1);
@@ -54,11 +85,13 @@ export const RiskMap: React.FC<RiskMapProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Selected item modal
+  // Selected item modal & Hotspot inspection
   const [activeItem, setActiveItem] = useState<{
     type: 'CASE' | 'OUTBREAK' | 'MORTALITY' | 'LAB' | 'VET';
     data: any;
   } | null>(null);
+
+  const [activeHotspot, setActiveHotspot] = useState<HotspotCluster | null>(null);
 
   // Fixed static reference points for Labs & Vet Centers
   const staticInfrastructure = [
@@ -69,7 +102,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
     { id: 'lab_anand', name: 'Anand Veterinary College Diagnostic Core Lab', type: 'LAB', lat: 22.564, lng: 72.928, district: 'Anand' }
   ];
 
-  // Map Bounds Projection (Covers western/central India region: Lat 12 to 32, Lng 72 to 84)
+  // Map Bounds Projection (Covers western/central India region: Lat 11.5 to 32.5, Lng 71.5 to 83.5)
   const mapBounds = {
     minLat: 11.5,
     maxLat: 32.5,
@@ -78,20 +111,87 @@ export const RiskMap: React.FC<RiskMapProps> = ({
   };
 
   const projectToMap = (lat: number, lng: number) => {
+    const cleanLat = Number(lat) || 18.5204;
+    const cleanLng = Number(lng) || 73.8567;
     // Normalization to 0% to 100%
-    const x = ((lng - mapBounds.minLng) / (mapBounds.maxLng - mapBounds.minLng)) * 100;
-    const y = ((mapBounds.maxLat - lat) / (mapBounds.maxLat - mapBounds.minLat)) * 100;
+    const x = ((cleanLng - mapBounds.minLng) / (mapBounds.maxLng - mapBounds.minLng)) * 100;
+    const y = ((mapBounds.maxLat - cleanLat) / (mapBounds.maxLat - mapBounds.minLat)) * 100;
     return { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) };
   };
 
-  // Filtered cases
+  // Active data source (Live vs Demo Simulation)
+  const demoScenarios = useMemo(() => GISHotspotEngine.getDemoScenarios(), []);
+
+  const activeDataset = useMemo(() => {
+    if (demoScenario === 'LIVE') {
+      return {
+        cases: cases || [],
+        outbreaks: outbreaks || [],
+        isDemo: false
+      };
+    }
+    const scenario = demoScenarios[demoScenario];
+    if (scenario) {
+      return {
+        cases: scenario.cases,
+        outbreaks: scenario.outbreaks,
+        isDemo: true,
+        scenarioName: scenario.name
+      };
+    }
+    return {
+      cases: cases || [],
+      outbreaks: outbreaks || [],
+      isDemo: false
+    };
+  }, [demoScenario, cases, outbreaks, demoScenarios]);
+
+  // Filtered cases by Time, Species, and Risk
   const filteredCases = useMemo(() => {
-    return (cases || []).filter(c => {
+    const { current: timeFiltered } = GISHotspotEngine.filterByTimeWindow(
+      activeDataset.cases,
+      timeWindow
+    );
+
+    return timeFiltered.filter(c => {
+      if (!c) return false;
       if (speciesFilter !== 'ALL' && c.species !== speciesFilter) return false;
       if (riskFilter !== 'ALL' && c.riskLevel !== riskFilter) return false;
       return true;
     });
-  }, [cases, speciesFilter, riskFilter]);
+  }, [activeDataset.cases, timeWindow, speciesFilter, riskFilter]);
+
+  // Detected Dynamic Hotspots via GIS Engine
+  const detectedHotspots = useMemo(() => {
+    const clusters = GISHotspotEngine.detectHotspots({
+      cases: activeDataset.cases,
+      outbreaks: activeDataset.outbreaks,
+      mortalities: mortalities || [],
+      labSamples: labSamples || [],
+      timeWindow,
+      speciesFilter,
+      riskFilter,
+      currentUser: activeUser
+    });
+
+    if (activeDataset.isDemo) {
+      return clusters.map(cl => ({
+        ...cl,
+        isSimulatedDemo: true,
+        simulatedScenarioName: activeDataset.scenarioName
+      }));
+    }
+
+    return clusters;
+  }, [
+    activeDataset,
+    mortalities,
+    labSamples,
+    timeWindow,
+    speciesFilter,
+    riskFilter,
+    activeUser
+  ]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -116,11 +216,29 @@ export const RiskMap: React.FC<RiskMapProps> = ({
 
   return (
     <div className={`relative w-full ${height} bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col select-none`}>
-      {/* Top Filter & Toolbar Bar */}
+      {/* Top Controls & Surveillance Filter Bar */}
       <div className="absolute top-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
         {/* Layer & Filters Pills */}
         <div className="flex flex-wrap items-center gap-2 pointer-events-auto bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-800 shadow-lg text-xs">
-          <div className="flex items-center gap-1.5 text-slate-400 font-semibold px-2">
+          {/* Time Surveillance Filter */}
+          <div className="flex items-center gap-1.5 bg-slate-950/80 px-2 py-1 rounded-lg border border-slate-800">
+            <Clock className="w-3.5 h-3.5 text-emerald-400" />
+            <select
+              value={timeWindow}
+              onChange={e => setTimeWindow(e.target.value as SurveillanceTimeWindow)}
+              className="bg-transparent text-emerald-300 font-semibold text-xs focus:ring-0 focus:outline-hidden cursor-pointer"
+            >
+              <option value="ALL" className="bg-slate-900 text-slate-200">All Records</option>
+              <option value="24h" className="bg-slate-900 text-slate-200">Last 24 Hours</option>
+              <option value="7d" className="bg-slate-900 text-slate-200">Last 7 Days</option>
+              <option value="30d" className="bg-slate-900 text-slate-200">Last 30 Days</option>
+              <option value="90d" className="bg-slate-900 text-slate-200">Last 90 Days</option>
+            </select>
+          </div>
+
+          <div className="h-4 w-px bg-slate-700 mx-0.5" />
+
+          <div className="flex items-center gap-1.5 text-slate-400 font-semibold px-1">
             <Filter className="w-3.5 h-3.5 text-emerald-400" />
             <span>Filters:</span>
           </div>
@@ -128,7 +246,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
           <select
             value={speciesFilter}
             onChange={e => setSpeciesFilter(e.target.value)}
-            className="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+            className="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
           >
             <option value="ALL">All Species</option>
             <option value="Cattle">Cattle</option>
@@ -142,7 +260,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
           <select
             value={riskFilter}
             onChange={e => setRiskFilter(e.target.value)}
-            className="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+            className="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
           >
             <option value="ALL">All Risk Levels</option>
             <option value="CRITICAL">Critical Risk (Red)</option>
@@ -151,7 +269,19 @@ export const RiskMap: React.FC<RiskMapProps> = ({
             <option value="LOW">Low (Green)</option>
           </select>
 
-          <div className="h-4 w-px bg-slate-700 mx-1" />
+          <div className="h-4 w-px bg-slate-700 mx-0.5" />
+
+          {/* Hotspot Zones Toggle */}
+          <label className="flex items-center gap-1.5 text-amber-300 font-bold hover:text-amber-200 cursor-pointer px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-800/40 hover:bg-amber-900/40">
+            <input
+              type="checkbox"
+              checked={showHotspots}
+              onChange={e => setShowHotspots(e.target.checked)}
+              className="rounded text-amber-500 focus:ring-0"
+            />
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            <span>Hotspots ({detectedHotspots.length})</span>
+          </label>
 
           {/* Quick Layer Toggles */}
           <label className="flex items-center gap-1.5 text-slate-300 hover:text-white cursor-pointer px-1.5 py-0.5 rounded hover:bg-slate-800">
@@ -171,7 +301,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
               onChange={e => setShowOutbreaks(e.target.checked)}
               className="rounded text-rose-500 focus:ring-0"
             />
-            <span>Outbreaks ({(outbreaks || []).length})</span>
+            <span>Outbreaks ({(activeDataset.outbreaks || []).length})</span>
           </label>
 
           <label className="flex items-center gap-1.5 text-slate-300 hover:text-white cursor-pointer px-1.5 py-0.5 rounded hover:bg-slate-800">
@@ -185,29 +315,49 @@ export const RiskMap: React.FC<RiskMapProps> = ({
           </label>
         </div>
 
-        {/* Map Zoom / Recenter Controls */}
-        <div className="flex items-center gap-1 pointer-events-auto bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-800 shadow-lg">
-          <button
-            onClick={() => setZoomLevel(prev => Math.min(prev + 0.3, 2.8))}
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setZoomLevel(prev => Math.max(prev - 0.3, 0.8))}
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={resetView}
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-            title="Reset Map Center"
-          >
-            <Crosshair className="w-4 h-4" />
-          </button>
+        {/* Demo Scenarios & Zoom Controls */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Demo Scenario Selector */}
+          <div className="bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-800 shadow-lg flex items-center gap-1 text-xs">
+            <span className="text-[10px] text-slate-400 font-semibold px-1 flex items-center gap-1">
+              <Play className="w-3 h-3 text-purple-400" /> Demo:
+            </span>
+            <select
+              value={demoScenario}
+              onChange={e => setDemoScenario(e.target.value as any)}
+              className="bg-slate-800 text-purple-200 border border-purple-800/60 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-purple-500 focus:outline-hidden cursor-pointer"
+            >
+              <option value="LIVE">Live Surveillance Data</option>
+              <option value="fmd_surge">Simulated FMD Surge (Critical)</option>
+              <option value="ppr_cluster">Simulated PPR Cluster (High)</option>
+              <option value="lsd_vector">Simulated LSD Vector Corridor</option>
+            </select>
+          </div>
+
+          {/* Zoom / Recenter Controls */}
+          <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-800 shadow-lg">
+            <button
+              onClick={() => setZoomLevel(prev => Math.min(prev + 0.3, 2.8))}
+              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setZoomLevel(prev => Math.max(prev - 0.3, 0.8))}
+              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <button
+              onClick={resetView}
+              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              title="Reset Map Center"
+            >
+              <Crosshair className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -228,7 +378,6 @@ export const RiskMap: React.FC<RiskMapProps> = ({
         >
           {/* Stylized GIS Grid Map Background */}
           <div className="absolute inset-0 opacity-40">
-            {/* Topographic Lines & Grid */}
             <div
               className="w-full h-full"
               style={{
@@ -241,7 +390,6 @@ export const RiskMap: React.FC<RiskMapProps> = ({
 
           {/* District Surveillance Boundaries Overlay (SVG) */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1000 600" preserveAspectRatio="none">
-            {/* State & District outline contours */}
             <path
               d="M 120 180 Q 280 140 450 170 T 780 220 Q 880 340 760 480 T 360 520 Q 180 460 120 180 Z"
               fill="rgba(16, 185, 129, 0.03)"
@@ -257,9 +405,113 @@ export const RiskMap: React.FC<RiskMapProps> = ({
             />
           </svg>
 
-          {/* 1. Containment Zones & Outbreak Radius Rings */}
+          {/* 1. Dynamic Intelligent Hotspot Zones Overlay */}
+          {showHotspots &&
+            detectedHotspots.map(cluster => {
+              const pos = projectToMap(cluster.centerLat, cluster.centerLng);
+              const isSelected = activeHotspot?.id === cluster.id;
+
+              const hotspotStyles: Record<
+                HotspotRiskTier,
+                { radial: string; border: string; badge: string; pinBg: string; ping: boolean }
+              > = {
+                CRITICAL: {
+                  radial: 'radial-gradient(circle, rgba(225, 29, 72, 0.35) 0%, rgba(225, 29, 72, 0.08) 60%, transparent 80%)',
+                  border: 'border-rose-500/80',
+                  badge: 'bg-rose-600 text-white',
+                  pinBg: 'bg-rose-600',
+                  ping: true
+                },
+                HIGH: {
+                  radial: 'radial-gradient(circle, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.06) 60%, transparent 80%)',
+                  border: 'border-orange-500/70',
+                  badge: 'bg-orange-500 text-white',
+                  pinBg: 'bg-orange-500',
+                  ping: true
+                },
+                MODERATE: {
+                  radial: 'radial-gradient(circle, rgba(251, 191, 36, 0.25) 0%, rgba(251, 191, 36, 0.04) 60%, transparent 80%)',
+                  border: 'border-amber-400/60',
+                  badge: 'bg-amber-400 text-slate-900',
+                  pinBg: 'bg-amber-400',
+                  ping: false
+                },
+                LOW: {
+                  radial: 'radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0.02) 60%, transparent 80%)',
+                  border: 'border-emerald-500/50',
+                  badge: 'bg-emerald-500 text-white',
+                  pinBg: 'bg-emerald-500',
+                  ping: false
+                }
+              };
+
+              const style = hotspotStyles[cluster.riskTier] || hotspotStyles.LOW;
+              const zoneDiameter = Math.min(220, Math.max(100, cluster.radiusKm * 8));
+
+              return (
+                <div
+                  key={`hotspot_${cluster.id}`}
+                  className="absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10 group"
+                  style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+                  onClick={e => {
+                    e.stopPropagation();
+                    setActiveHotspot(cluster);
+                    setActiveItem(null);
+                  }}
+                >
+                  {/* Dynamic Radial Density Glow Zone */}
+                  <div
+                    className={`rounded-full transition-all duration-300 ${style.border} border border-dashed flex items-center justify-center`}
+                    style={{
+                      width: `${zoneDiameter}px`,
+                      height: `${zoneDiameter}px`,
+                      background: style.radial
+                    }}
+                  >
+                    {/* Ping Radar Wave for Critical/High Hotspots */}
+                    {style.ping && (
+                      <div className="absolute inset-0 m-auto w-3/4 h-3/4 rounded-full border border-rose-500/40 animate-ping duration-1000" />
+                    )}
+
+                    {/* Central Interactive Cluster Core Pin */}
+                    <div
+                      className={`relative z-20 flex items-center gap-1 px-2.5 py-1 rounded-full border-2 border-white shadow-2xl transition-transform ${
+                        isSelected ? 'scale-125 ring-4 ring-emerald-400' : 'group-hover:scale-110'
+                      } ${style.badge}`}
+                    >
+                      {cluster.riskTier === 'CRITICAL' ? (
+                        <Flame className="w-3 h-3 fill-current animate-pulse" />
+                      ) : cluster.riskTier === 'HIGH' ? (
+                        <AlertTriangle className="w-3 h-3 fill-current" />
+                      ) : (
+                        <Activity className="w-3 h-3" />
+                      )}
+                      <span className="font-extrabold text-[10px] tracking-tight whitespace-nowrap">
+                        {cluster.riskScore}
+                      </span>
+                    </div>
+
+                    {/* Hotspot Hover Tooltip Card */}
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900/95 text-slate-100 px-3 py-1.5 rounded-xl border border-slate-700 text-[10px] font-medium whitespace-nowrap shadow-2xl z-40 pointer-events-none">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className={`w-2 h-2 rounded-full ${style.pinBg}`} />
+                        <span>{cluster.name}</span>
+                        {cluster.trend === 'INCREASING' && <TrendingUp className="w-3 h-3 text-rose-400" />}
+                        {cluster.trend === 'DECREASING' && <TrendingDown className="w-3 h-3 text-emerald-400" />}
+                        {cluster.trend === 'STABLE' && <Minus className="w-3 h-3 text-amber-400" />}
+                      </div>
+                      <div className="text-slate-400 text-[9px] mt-0.5">
+                        {cluster.classification.replace(/_/g, ' ')} • {cluster.currentPeriodCaseCount} Cases ({cluster.totalAffectedAnimals} Sick)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+          {/* 2. Containment Zones & Outbreak Radius Rings */}
           {showContainmentRings &&
-            outbreaks.map(outb => {
+            (activeDataset.outbreaks || []).map(outb => {
               const pos = projectToMap(outb.latitude, outb.longitude);
               return (
                 <div
@@ -278,7 +530,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
               );
             })}
 
-          {/* 2. Diagnostic Laboratories */}
+          {/* 3. Diagnostic Laboratories */}
           {showDiagnosticLabs &&
             staticInfrastructure
               .filter(i => i.type === 'LAB')
@@ -290,8 +542,9 @@ export const RiskMap: React.FC<RiskMapProps> = ({
                     onClick={e => {
                       e.stopPropagation();
                       setActiveItem({ type: 'LAB', data: lab });
+                      setActiveHotspot(null);
                     }}
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10 group cursor-pointer"
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 group cursor-pointer"
                     style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                   >
                     <div className="p-2 bg-purple-900/90 text-purple-200 border border-purple-400/50 rounded-xl shadow-lg hover:scale-125 transition-transform flex items-center justify-center">
@@ -304,7 +557,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
                 );
               })}
 
-          {/* 3. Veterinary Polyclinics */}
+          {/* 4. Veterinary Polyclinics */}
           {showVetCenters &&
             staticInfrastructure
               .filter(i => i.type === 'VET')
@@ -316,8 +569,9 @@ export const RiskMap: React.FC<RiskMapProps> = ({
                     onClick={e => {
                       e.stopPropagation();
                       setActiveItem({ type: 'VET', data: vet });
+                      setActiveHotspot(null);
                     }}
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10 group cursor-pointer"
+                    className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 group cursor-pointer"
                     style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                   >
                     <div className="p-1.5 bg-blue-900/90 text-blue-200 border border-blue-400/50 rounded-lg shadow-lg hover:scale-125 transition-transform flex items-center justify-center">
@@ -330,7 +584,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
                 );
               })}
 
-          {/* 4. Mortality Reports */}
+          {/* 5. Mortality Reports */}
           {showMortalities &&
             mortalities.map(m => {
               const pos = projectToMap(m.latitude, m.longitude);
@@ -340,8 +594,9 @@ export const RiskMap: React.FC<RiskMapProps> = ({
                   onClick={e => {
                     e.stopPropagation();
                     setActiveItem({ type: 'MORTALITY', data: m });
+                    setActiveHotspot(null);
                   }}
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-15 group cursor-pointer"
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-25 group cursor-pointer"
                   style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                 >
                   <div className="relative">
@@ -356,7 +611,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
               );
             })}
 
-          {/* 5. Active Disease Cases */}
+          {/* 6. Active Disease Cases */}
           {showCases &&
             filteredCases.map(c => {
               const pos = projectToMap(c.latitude, c.longitude);
@@ -377,9 +632,10 @@ export const RiskMap: React.FC<RiskMapProps> = ({
                   onClick={e => {
                     e.stopPropagation();
                     setActiveItem({ type: 'CASE', data: c });
+                    setActiveHotspot(null);
                     if (onSelectCase) onSelectCase(c.id);
                   }}
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 group cursor-pointer"
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-30 group cursor-pointer"
                   style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                 >
                   <div className="relative flex items-center justify-center">
@@ -398,7 +654,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
                     </div>
 
                     {/* Tooltip Hover Badge */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900/95 text-slate-200 px-2 py-1 rounded border border-slate-700 text-[10px] font-medium whitespace-nowrap shadow-xl z-30 pointer-events-none">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900/95 text-slate-200 px-2 py-1 rounded border border-slate-700 text-[10px] font-medium whitespace-nowrap shadow-xl z-40 pointer-events-none">
                       <p className="font-bold text-white">{c.suspectedDiseases?.[0]?.diseaseName || 'Case'}</p>
                       <p className="text-slate-400">{c.villageName} • {c.species}</p>
                     </div>
@@ -435,28 +691,46 @@ export const RiskMap: React.FC<RiskMapProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded-full border border-dashed border-rose-400 bg-rose-500/20" />
+            <div className="w-3.5 h-3.5 rounded-full border border-dashed border-amber-400 bg-amber-500/20" />
+            <span className="text-slate-300">Hotspot Zone</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <div className="w-3.5 h-3.5 rounded-full border border-dashed border-rose-400 bg-rose-500/20" />
             <span className="text-slate-300">Containment Ring</span>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <div className="p-1 bg-purple-900 text-purple-200 rounded text-[9px]">🧪</div>
-            <span className="text-slate-300">Diagnostic Lab</span>
+            <div className="p-0.5 bg-purple-900 text-purple-200 rounded text-[9px]">🧪</div>
+            <span className="text-slate-300">Lab</span>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <div className="p-1 bg-blue-900 text-blue-200 rounded text-[9px]">🏥</div>
+            <div className="p-0.5 bg-blue-900 text-blue-200 rounded text-[9px]">🏥</div>
             <span className="text-slate-300">Vet Center</span>
           </div>
         </div>
 
         <div className="text-[11px] text-slate-400 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 pointer-events-auto">
-          Privacy Safe: Geographic aggregation only. No private owner contacts exposed.
+          Epidemiological Early Warning • Not a Clinical Diagnosis
         </div>
       </div>
 
-      {/* Selected Item Drawer / Inspection Card */}
-      {activeItem && (
+      {/* Selected Hotspot Intelligence Details Panel */}
+      {activeHotspot && (
+        <div className="absolute top-16 right-4 z-40">
+          <HotspotDetailsPanel
+            cluster={activeHotspot}
+            timeWindow={timeWindow}
+            currentUser={activeUser}
+            onClose={() => setActiveHotspot(null)}
+            onSelectCase={onSelectCase}
+          />
+        </div>
+      )}
+
+      {/* Selected Item Drawer / Inspection Card (for non-hotspot items) */}
+      {activeItem && !activeHotspot && (
         <div className="absolute top-16 right-4 z-30 w-80 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-4 border border-slate-700 shadow-2xl animate-in slide-in-from-right-5 duration-150">
           <div className="flex items-start justify-between pb-3 border-b border-slate-800">
             <div>
@@ -471,7 +745,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
             </div>
             <button
               onClick={() => setActiveItem(null)}
-              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>

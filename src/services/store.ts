@@ -1291,6 +1291,18 @@ class LivestockGuardStore {
     return newAlert;
   }
 
+  public addAlert(alert: Alert): Alert {
+    const existingIndex = this.alerts.findIndex(a => a.id === alert.id);
+    if (existingIndex >= 0) {
+      this.alerts[existingIndex] = alert;
+    } else {
+      this.alerts.unshift(alert);
+    }
+    saveToStorage(STORAGE_KEYS.ALERTS, this.alerts);
+    this.notify();
+    return alert;
+  }
+
   public markAlertAsRead(alertId: string) {
     const a = this.alerts.find(x => x.id === alertId);
     if (a) {

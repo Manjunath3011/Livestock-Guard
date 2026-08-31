@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { store } from '../../services/store';
+import { notificationService } from '../../services/NotificationService';
 import { User, Role, LanguageCode, Alert } from '../../types';
 import { TRANSLATIONS } from '../../i18n/translations';
 import { DemoRoleSwitcher } from './DemoRoleSwitcher';
@@ -42,7 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const isOffline = store.isOffline();
   const offlineQueue = store.getOfflineQueue() || [];
-  const unreadAlerts = (alerts || []).filter(a => !a.isRead).length;
+  const unreadAlerts = currentUser ? notificationService.getUnreadCount(currentUser) : (alerts || []).filter(a => !a.isRead).length;
+  const criticalUnread = currentUser ? notificationService.getCriticalCount(currentUser) : (alerts || []).filter(a => !a.isRead && a.priority === 'CRITICAL').length;
 
   const handleRoleSelect = (r: Role) => {
     store.switchRole(r);

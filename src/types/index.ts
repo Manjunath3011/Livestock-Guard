@@ -59,7 +59,33 @@ export type OutbreakStatus =
   | 'CONTAINMENT_ZONE'
   | 'RESOLVED';
 
-export type AlertPriority = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type AlertPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
+export type NotificationType =
+  | 'CRITICAL_OUTBREAK'
+  | 'HIGH_RISK'
+  | 'ANIMAL_HEALTH'
+  | 'VACCINATION_REMINDER'
+  | 'CASE_STATUS_UPDATE'
+  | 'NEARBY_ACTIVITY'
+  | 'LAB_UPDATE'
+  | 'FIELD_TASK'
+  | 'SYSTEM_NOTICE'
+  | 'DEMO_ALERT';
+
+export type AlertCategory =
+  | 'OUTBREAK'
+  | 'HIGH_RISK'
+  | 'ANIMAL_HEALTH'
+  | 'MORTALITY_CLUSTER'
+  | 'VACCINATION_OVERDUE'
+  | 'LAB_CONFIRMATION'
+  | 'CASE_ESCALATION'
+  | 'CASE_STATUS'
+  | 'NEARBY_ACTIVITY'
+  | 'WEATHER_WARNING'
+  | 'SYSTEM_NOTICE'
+  | 'DEMO_SIMULATION';
 
 export type LanguageCode = 'en' | 'hi' | 'kn' | 'te' | 'mr';
 
@@ -745,18 +771,58 @@ export interface LabSample {
 
 export interface Alert {
   id: string;
+  userId?: string; // If notification is private/specific to a user
   title: string;
   message: string;
+  type?: NotificationType;
   priority: AlertPriority;
-  category: 'OUTBREAK' | 'HIGH_RISK' | 'MORTALITY_CLUSTER' | 'VACCINATION_OVERDUE' | 'LAB_CONFIRMATION' | 'CASE_ESCALATION' | 'WEATHER_WARNING';
+  category: AlertCategory;
   targetRoles: Role[];
+  
+  // Location Hierarchy & Relevance
+  stateId?: string;
+  stateName?: string;
+  districtId?: string;
   districtName?: string;
+  blockId?: string;
+  blockName?: string;
+  villageId?: string;
   villageName?: string;
+  distanceKm?: number;
+  locationRelevance?: string; // e.g. "Same Village - Immediate Critical Notice", "Adjacent Village - 5km Buffer", "District Level"
+
+  // Related Entities
+  animalId?: string;
+  animalTag?: string;
+  farmId?: string;
+  farmName?: string;
   caseId?: string;
+  caseNumber?: string;
   outbreakId?: string;
+  outbreakCode?: string;
+  sampleId?: string;
+  sampleCode?: string;
+  diseaseId?: string;
+  diseaseName?: string;
+  species?: Species[];
+
+  // Action Triggers
+  actionUrl?: string;
+  actionType?: 'VIEW_CASE' | 'VIEW_ANIMAL' | 'REPORT_ANIMAL' | 'CONTACT_VET' | 'VIEW_LAB' | 'VIEW_MAP' | 'VIEW_DETAILS' | 'COMPLETE_VAX';
+  actionLabel?: string;
+
+  // Guidance, precautions & Veterinary Safety
+  recommendedActions?: string[];
+  safetyGuidance?: string[];
+  veterinaryUrgency?: 'ROUTINE' | 'ELEVATED' | 'HIGH' | 'EMERGENCY';
+  isMLScreening?: boolean;
+
+  // Demo Simulation Tag
+  isDemo?: boolean;
+
   createdAt: string;
   isRead: boolean;
-  actionUrl?: string;
+  status?: 'ACTIVE' | 'RESOLVED' | 'DISMISSED';
 }
 
 export interface WeatherData {
@@ -1042,3 +1108,4 @@ export interface HybridRiskAssessment {
 }
 
 export * from './location';
+export * from './gis';

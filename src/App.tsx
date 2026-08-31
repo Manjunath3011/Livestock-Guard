@@ -382,16 +382,37 @@ export function App() {
         </div>
       )}
 
-      {/* Slide-out Notification Drawer */}
+      {/* Slide-out Notification Drawer / Notification Center */}
       <NotificationDrawer
         isOpen={isNotificationDrawerOpen}
         onClose={() => setIsNotificationDrawerOpen(false)}
         alerts={alerts}
+        currentUser={currentUser}
         onSelectAlert={alert => {
           if (alert.caseId) {
             handleSelectCase(alert.caseId);
           } else if (alert.category === 'OUTBREAK') {
             setActiveModule('outbreaks');
+          } else if (alert.animalId) {
+            setActiveModule('animals');
+          } else if (alert.sampleId) {
+            setActiveModule('lab_samples');
+          }
+          setIsNotificationDrawerOpen(false);
+        }}
+        onNavigateAction={(actionType, payload) => {
+          if (actionType === 'VIEW_CASE' && payload) {
+            handleSelectCase(payload);
+          } else if (actionType === 'VIEW_OUTBREAKS') {
+            setActiveModule('outbreaks');
+          } else if (actionType === 'REPORT_CASE') {
+            setActiveModule('report_case');
+          } else if (actionType === 'VIEW_ANIMALS') {
+            setActiveModule('animals');
+          } else if (actionType === 'VIEW_LAB') {
+            setActiveModule('lab_samples');
+          } else {
+            setActiveModule('dashboard');
           }
           setIsNotificationDrawerOpen(false);
         }}
