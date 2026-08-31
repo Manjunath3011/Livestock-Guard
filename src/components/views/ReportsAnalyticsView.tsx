@@ -1,56 +1,103 @@
 import React, { useState } from 'react';
-import { FileText, Download, CheckCircle, Printer, Filter, Calendar, BarChart3, Building } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import {
+  FileText,
+  Download,
+  CheckCircle,
+  Printer,
+  Filter,
+  Calendar,
+  BarChart3,
+  Building,
+  FileSpreadsheet,
+  Layers,
+  Activity,
+  AlertCircle
+} from 'lucide-react';
+import { DataExportModal } from '../common/DataExportModal';
+import { store } from '../../services/store';
 
 export const ReportsAnalyticsView: React.FC = () => {
-  const [reportType, setReportType] = useState('MONTHLY_DIRECTORATE');
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const cases = store.getCases() || [];
+  const outbreaks = store.getOutbreaks() || [];
+  const mortalities = store.getMortalityReports() || [];
 
-  const handleExport = () => {
-    setDownloadSuccess(true);
-    try {
-      confetti({ particleCount: 40, spread: 60 });
-    } catch (e) {}
-    setTimeout(() => setDownloadSuccess(false), 3000);
-  };
+  const totalCases = cases.length;
+  const criticalCases = cases.filter(c => c.riskLevel === 'CRITICAL' || c.riskLevel === 'HIGH').length;
+  const activeOutbreaks = outbreaks.filter(o => o.status === 'ACTIVE').length;
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      {/* Header Banner */}
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
             <Building className="w-4 h-4 text-emerald-600" />
             Directorate of Animal Husbandry Official Reporting
           </div>
-          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Government Compliance & Monthly Epizootic Reports
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            Government Compliance & Epizootic Data Export
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Standardized NADRS / DAHD format monthly disease incidence, ring vaccination coverage and mortality statistics.
+            Download standardized NADRS / DAHD format monthly disease incidence, ring vaccination coverage and mortality statistics.
           </p>
         </div>
 
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-700/20 cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          Export Official PDF / CSV
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-emerald-700/20 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV / PDF Reports
+          </button>
+        </div>
       </div>
 
-      {downloadSuccess && (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-950 p-4 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-          <CheckCircle className="w-4 h-4 text-emerald-600" />
-          Report compiled & downloaded: Official_DAHD_Surveillance_Report_2026.pdf
+      {/* Analytics Summary Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
+            <span>Total Cases Screened</span>
+            <Activity className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900">{totalCases}</div>
+          <div className="text-[11px] text-slate-400">Recorded across active state clusters</div>
         </div>
-      )}
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
+            <span>High Risk / Critical Alerts</span>
+            <AlertCircle className="w-4 h-4 text-rose-600" />
+          </div>
+          <div className="text-2xl font-black text-rose-700">{criticalCases}</div>
+          <div className="text-[11px] text-slate-400">Requiring immediate emergency triage</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
+            <span>Active Outbreak Circles</span>
+            <Layers className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="text-2xl font-black text-amber-700">{activeOutbreaks}</div>
+          <div className="text-[11px] text-slate-400">Ring vaccination containment enforced</div>
+        </div>
+      </div>
 
       {/* District Surveillance Compliance Matrix */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-700 flex justify-between items-center">
-          <span>District Surveillance Status (State Performance Matrix)</span>
-          <span className="text-slate-400 font-normal">Updated Live from Central Surveillance Core</span>
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="p-5 bg-slate-50 border-b border-slate-200 font-bold text-xs text-slate-700 flex flex-wrap justify-between items-center gap-2">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-emerald-600" />
+            <span>District Surveillance Status (State Performance Matrix)</span>
+          </div>
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export Matrix
+          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -86,6 +133,13 @@ export const ReportsAnalyticsView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Export Modal Dialog */}
+      <DataExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
     </div>
   );
 };
+

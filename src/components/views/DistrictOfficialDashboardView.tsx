@@ -68,7 +68,7 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
       level: 'DISTRICT',
       jurisdiction: 'Pune District (Baramati, Daund, Indapur Blocks)',
       diseaseTarget: advisoryDisease,
-      issuedBy: currentUser.name,
+      issuedBy: currentUser?.name || 'District Official',
       issuedRole: 'DISTRICT_OFFICIAL',
       priority: advisoryPriority,
       content: advisoryContent,
@@ -113,7 +113,7 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
         'Carcass disposal supervised with deep burial & lime'
       ],
       caseIds: ['cas_01'],
-      declaredBy: currentUser.name
+      declaredBy: currentUser?.name || 'District Official'
     });
 
     setSuccessToast(`Outbreak containment zone established around ${outbreakVillage}!`);
@@ -122,8 +122,8 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
     refreshData();
   };
 
-  const activeOutbreaks = outbreaks.filter(o => o.status === 'CONTAINMENT_ZONE' || o.status === 'CONFIRMED');
-  const criticalCases = cases.filter(c => c.riskLevel === 'CRITICAL' || c.riskLevel === 'HIGH');
+  const activeOutbreaks = (outbreaks || []).filter(o => o.status === 'CONTAINMENT_ZONE' || o.status === 'CONFIRMED');
+  const criticalCases = (cases || []).filter(c => c.riskLevel === 'CRITICAL' || c.riskLevel === 'HIGH');
 
   return (
     <div className="space-y-6 pb-12">
@@ -136,7 +136,7 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
               <span>Office of the Joint Director • Department of Animal Husbandry</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              District Surveillance Command: {currentUser.name}
+              District Surveillance Command: {currentUser?.name || 'District Official'}
             </h1>
             <p className="text-amber-100 text-sm mt-1 flex items-center gap-2">
               <MapPin className="w-4 h-4 text-amber-300" />
@@ -175,8 +175,8 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Active Cases</span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{cases.length}</div>
-            <div className="text-xs text-rose-600 font-medium mt-1">{criticalCases.length} High/Critical Triage</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{(cases || []).length}</div>
+            <div className="text-xs text-rose-600 font-medium mt-1">{(criticalCases || []).length} High/Critical Triage</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 flex items-center justify-center">
             <Activity className="w-6 h-6" />
@@ -186,7 +186,7 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Active Outbreak Clusters</span>
-            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{activeOutbreaks.length}</div>
+            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{(activeOutbreaks || []).length}</div>
             <div className="text-xs text-rose-600 font-medium mt-1">Ring containment active</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center">

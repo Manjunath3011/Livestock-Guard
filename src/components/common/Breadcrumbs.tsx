@@ -2,6 +2,7 @@ import React from 'react';
 import { User } from '../../types';
 import { getRoleMetadata } from '../../auth/roles';
 import { ChevronRight, Shield, Home } from 'lucide-react';
+import { useTranslation } from '../../i18n/translations';
 
 interface BreadcrumbsProps {
   currentUser: User;
@@ -14,46 +15,47 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   activeModule,
   onNavigateHome
 }) => {
+  const { t } = useTranslation();
   const roleMeta = getRoleMetadata(currentUser.role);
 
   const getModuleTitle = (mod: string) => {
     switch (mod) {
       case 'dashboard':
-        return roleMeta.subtitle;
+        return t('dashboard', roleMeta.subtitle);
       case 'overview_dashboard':
-        return 'Overview Dashboard';
+        return t('dashboard', 'Overview Dashboard');
       case 'report_case':
-        return 'Report Disease Case';
+        return t('reportCase', 'Report Disease Case');
       case 'vet_dashboard':
-        return 'Veterinary Triage & Consultations';
+        return t('veterinaryDashboard', 'Veterinary Triage & Consultations');
       case 'animals':
-        return 'Herd & Animal Registry';
+        return currentUser.role === 'FARMER' ? t('myHerd', 'My Animals') : t('animals', 'Herd & Animal Registry');
       case 'herds':
-        return 'Herd Management';
+        return t('herds', 'Herd Management');
       case 'laboratory':
-        return 'Diagnostic Lab Samples';
+        return t('laboratory', 'Diagnostic Lab Samples');
       case 'outbreaks':
-        return 'Outbreak Surveillance & Radar';
+        return t('outbreaks', 'Outbreak Surveillance & Radar');
       case 'vaccinations':
-        return 'Vaccination Registry';
+        return t('vaccinations', 'Vaccination Registry');
       case 'treatments':
-        return 'Treatments & Prescriptions';
+        return t('treatments', 'Treatments & Prescriptions');
       case 'mortality':
-        return 'Mortality Audit & Disposal';
+        return t('mortality', 'Mortality Audit & Disposal');
       case 'knowledge_base':
-        return 'Veterinary Knowledge Base';
+        return t('diseaseKnowledgeBase', 'Veterinary Knowledge Base');
       case 'weather':
-        return 'Biometeorology & Climate Risk';
+        return t('weatherEnvironment', 'Biometeorology & Climate Risk');
       case 'historical_trends':
-        return 'Epidemiological Trends';
+        return t('historicalTrends', 'Epidemiological Trends');
       case 'reports_analytics':
-        return 'Analytics & Policy Reports';
+        return t('reportsAnalytics', 'Analytics & Policy Reports');
       case 'testing_center':
-        return 'Diagnostic Testing Bench';
+        return t('quickScenarios', 'Diagnostic Testing Bench');
       case 'settings':
-        return 'Settings & Configuration';
+        return t('settings', 'Settings & Configuration');
       case 'system_admin':
-        return 'System Administration';
+        return t('settings', 'System Administration');
       default:
         return mod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }

@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Case, User, CaseStatus, LabSample, FollowUpRecord } from '../../types';
 import { store } from '../../services/store';
 import { RiskBadge } from '../common/RiskBadge';
 import { CaseStatusBadge } from '../common/CaseStatusBadge';
 import { Modal } from '../common/Modal';
+import { HybridDecisionSupportCard } from '../common/HybridDecisionSupportCard';
+import { HybridRiskEngine } from '../../services/HybridRiskEngine';
+import { useTranslation } from '../../i18n/translations';
 import {
   Stethoscope,
   Activity,
@@ -23,7 +26,8 @@ import {
   TrendingUp,
   AlertTriangle,
   Send,
-  History
+  History,
+  BrainCircuit
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -37,6 +41,7 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
   cases,
   currentUser
 }) => {
+  const { t, currentLang } = useTranslation();
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
@@ -70,7 +75,31 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
   const [dosage, setDosage] = useState('15 ml IM OD for 3 days');
   const [treatmentNotes, setTreatmentNotes] = useState('Provide soft mash feed and 2% sodium carbonate mouth wash.');
 
-  const filteredCases = cases.filter(c => {
+  const [caseDetailTab, setCaseDetailTab] = useState<'DECISION_SUPPORT' | 'OVERVIEW' | 'FOLLOWUPS' | 'AUDIT'>('DECISION_SUPPORT');
+
+  const selectedCaseHybridAssessment = useMemo(() => {
+    if (!selectedCase) return null;
+    if (selectedCase.hybridAssessment) return selectedCase.hybridAssessment;
+
+    return HybridRiskEngine.evaluate({
+      species: selectedCase.species,
+      symptoms: selectedCase.symptoms || [],
+      symptomDurationDays: selectedCase.symptomDurationDays || 2,
+      previousDiseaseHistory: selectedCase.previousHealthHistory || [],
+      affectedCount: selectedCase.affectedCount || 1,
+      totalAnimalsInHerd: selectedCase.totalAnimalsInHerd || (selectedCase.affectedCount ? selectedCase.affectedCount * 3 : 10),
+      deadCount: selectedCase.deadCount || 0,
+      latitude: selectedCase.latitude,
+      longitude: selectedCase.longitude,
+      stateId: selectedCase.stateId,
+      districtId: selectedCase.districtId,
+      villageId: selectedCase.villageId,
+      vaccinationStatus: selectedCase.vaccinationStatusAtReport || 'UNKNOWN',
+      existingCases: cases || []
+    });
+  }, [selectedCase, cases]);
+
+  const filteredCases = (cases || []).filter(c => {
     if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
     if (riskFilter !== 'ALL' && c.riskLevel !== riskFilter) return false;
     return true;
@@ -137,7 +166,7 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
       laboratoryId: 'lab_pune_dial',
       laboratoryName: labName,
       testRequested,
-      suspectedDiseaseName: selectedCase.suspectedDiseases[0]?.diseaseName || 'Foot-and-Mouth Disease',
+      suspectedDiseaseName: selectedCase.suspectedDiseases?.[0]?.diseaseName || 'Foot-and-Mouth Disease',
       remarks: 'Urgent sample collected during field clinical triage.'
     });
 
@@ -160,7 +189,7 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
       animalTag: selectedCase.animalTag,
       species: selectedCase.species,
       farmName: selectedCase.farmName,
-      suspectedDisease: selectedCase.suspectedDiseases[0]?.diseaseName || 'Clinical Syndrome',
+      suspectedDisease: selectedCase.suspectedDiseases?.[0]?.diseaseName || 'Clinical Syndrome',
       treatmentDate: new Date().toISOString().split('T')[0],
       medicines: [
         {
@@ -188,13 +217,13 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1">
             <Stethoscope className="w-4 h-4" />
-            Veterinary Clinical Triage & Differential Hub
+            {t('clinicalTriage', 'Veterinary Clinical Triage & Differential Hub')}
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Clinical Surveillance Board ({filteredCases.length} Cases)
+            {t('cases', 'Clinical Surveillance Board')} ({filteredCases.length} {t('cases', 'Cases')})
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Review live field reports, order lab testing, prescribe supportive care, and issue quarantine containment orders.
+            {t('routinePrevention', 'Review live field reports, order lab testing, prescribe supportive care, and issue quarantine containment orders.')}
           </p>
         </div>
 
@@ -205,13 +234,13 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
             onChange={e => setStatusFilter(e.target.value)}
             className="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium focus:bg-white focus:outline-hidden"
           >
-            <option value="ALL">All Statuses</option>
-            <option value="NEW">New Reports</option>
-            <option value="UNDER_REVIEW">Under Review</option>
-            <option value="VET_VISIT_REQUIRED">Vet Visit Required</option>
-            <option value="LAB_TESTING">In Lab Testing</option>
-            <option value="CONFIRMED">Confirmed Positive</option>
-            <option value="RESOLVED">Resolved</option>
+            <option value="ALL">{t('allStatus', 'All Statuses')}</option>
+            <option value="NEW">{t('pending', 'New Reports')}</option>
+            <option value="UNDER_REVIEW">{t('underObservation', 'Under Review')}</option>
+            <option value="VET_VISIT_REQUIRED">{t('consultVet', 'Vet Visit Required')}</option>
+            <option value="LAB_TESTING">{t('lab', 'In Lab Testing')}</option>
+            <option value="CONFIRMED">{t('affected', 'Confirmed Positive')}</option>
+            <option value="RESOLVED">{t('recovered', 'Resolved')}</option>
           </select>
 
           <select
@@ -219,11 +248,11 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
             onChange={e => setRiskFilter(e.target.value)}
             className="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium focus:bg-white focus:outline-hidden"
           >
-            <option value="ALL">All Risk Levels</option>
-            <option value="CRITICAL">Critical Risk</option>
-            <option value="HIGH">High Risk</option>
-            <option value="MODERATE">Moderate Risk</option>
-            <option value="LOW">Low Risk</option>
+            <option value="ALL">{t('riskLevel', 'All Risk Levels')}</option>
+            <option value="CRITICAL">{t('critical', 'Critical Risk')}</option>
+            <option value="HIGH">{t('highRisk', 'High Risk')}</option>
+            <option value="MODERATE">{t('moderateRisk', 'Moderate Risk')}</option>
+            <option value="LOW">{t('lowRisk', 'Low Risk')}</option>
           </select>
         </div>
       </div>
@@ -261,7 +290,7 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                         </span>
                       </div>
                       <p className="text-xs font-semibold text-emerald-800 mt-1">
-                        Suspected: {c.suspectedDiseases[0]?.diseaseName || 'Under Evaluation'}
+                        Suspected: {c.suspectedDiseases?.[0]?.diseaseName || 'Under Evaluation'}
                       </p>
                     </div>
 
@@ -317,7 +346,13 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                 </button>
 
                 <button
-                  onClick={() => setIsSampleModalOpen(true)}
+                  onClick={() => {
+                    if (selectedCaseHybridAssessment) {
+                      const labRec = selectedCaseHybridAssessment.decisionSupport.laboratoryPathway;
+                      setTestRequested(labRec.recommendedTest as any);
+                    }
+                    setIsSampleModalOpen(true);
+                  }}
                   className="bg-purple-700 hover:bg-purple-800 text-white p-2 rounded-xl text-xs font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1"
                 >
                   <FlaskConical className="w-3.5 h-3.5" />
@@ -349,119 +384,203 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                 </button>
               </div>
 
-              {/* Clinical Summary */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Current Status:</span>
-                  <CaseStatusBadge status={selectedCase.status} size="sm" />
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Morbidity / Dead:</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedCase.affectedCount} Sick / {selectedCase.deadCount} Dead
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Owner Contact:</span>
-                  <span className="font-semibold text-slate-800">{selectedCase.ownerName} ({selectedCase.ownerPhone})</span>
-                </div>
+              {/* Tab Selector */}
+              <div className="flex items-center gap-1 border-b border-slate-200 pb-1 text-xs">
+                {[
+                  { id: 'DECISION_SUPPORT', label: 'AI & Hybrid Support', icon: BrainCircuit },
+                  { id: 'OVERVIEW', label: 'Case Overview', icon: FileText },
+                  { id: 'FOLLOWUPS', label: `Follow-Ups (${(selectedCase.followUpRecords || []).length})`, icon: HeartPulse },
+                  { id: 'AUDIT', label: 'Audit Log', icon: Clock }
+                ].map(t => {
+                  const Icon = t.icon;
+                  const isActive = caseDetailTab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setCaseDetailTab(t.id as any)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{t.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Differential Ranking */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Top Differential Matches:
-                </h4>
-                {(selectedCase.suspectedDiseases || []).map((d, i) => (
-                  <div key={d.diseaseId} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex justify-between items-center">
-                    <span className="font-bold text-slate-900">{i + 1}. {d.diseaseName}</span>
-                    <span className="font-mono text-emerald-700 font-bold">{d.screeningScore}%</span>
+              {/* TAB 1: AI & DECISION SUPPORT */}
+              {caseDetailTab === 'DECISION_SUPPORT' && selectedCaseHybridAssessment && (
+                <div className="space-y-4 animate-in fade-in">
+                  <HybridDecisionSupportCard
+                    assessment={selectedCaseHybridAssessment}
+                    showActions={true}
+                    onReferToVet={() => {
+                      setNewStatus('VET_VISIT_REQUIRED');
+                      setIsStatusModalOpen(true);
+                    }}
+                    onRequestLabTest={() => {
+                      const labRec = selectedCaseHybridAssessment.decisionSupport.laboratoryPathway;
+                      setTestRequested(labRec.recommendedTest as any);
+                      setIsSampleModalOpen(true);
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* TAB 2: CASE OVERVIEW & SYMPTOMS */}
+              {caseDetailTab === 'OVERVIEW' && (
+                <div className="space-y-4 animate-in fade-in">
+                  {/* Clinical Summary */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Current Status:</span>
+                      <CaseStatusBadge status={selectedCase.status} size="sm" />
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Morbidity / Dead:</span>
+                      <span className="font-bold text-slate-800">
+                        {selectedCase.affectedCount} Sick / {selectedCase.deadCount} Dead
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Owner Contact:</span>
+                      <span className="font-semibold text-slate-800">{selectedCase.ownerName} ({selectedCase.ownerPhone})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Reporter:</span>
+                      <span className="font-semibold text-slate-800">{selectedCase.reporterName} ({selectedCase.reporterRole})</span>
+                    </div>
+                    {selectedCase.symptomDurationDays && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Duration of Sickness:</span>
+                        <span className="font-bold text-slate-800">{selectedCase.symptomDurationDays} days</span>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
 
-              {/* Follow-Up Evolution Timeline */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                  {/* Symptoms Recorded */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Reported Symptoms ({(selectedCase.symptoms || []).length})
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(selectedCase.symptoms || []).map((s, idx) => (
+                        <div key={idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex justify-between items-center">
+                          <span className="font-bold text-slate-800">{s.symptomName}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            s.severity === 'severe' ? 'bg-rose-100 text-rose-800' : s.severity === 'moderate' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            {s.severity}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Differential Ranking */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Differential Disease Ranking
+                    </h4>
+                    {(selectedCase.suspectedDiseases || []).map((d, i) => (
+                      <div key={d.diseaseId} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs flex justify-between items-center">
+                        <span className="font-bold text-slate-900">{i + 1}. {d.diseaseName}</span>
+                        <span className="font-mono text-emerald-700 font-bold">{d.screeningScore}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: FOLLOW-UPS */}
+              {caseDetailTab === 'FOLLOWUPS' && (
+                <div className="space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                      <HeartPulse className="w-3.5 h-3.5 text-blue-600" />
+                      Follow-Up Evolution ({(selectedCase.followUpRecords || []).length})
+                    </h4>
+                    <button
+                      onClick={() => setIsFollowUpModalOpen(true)}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                    >
+                      + Add Check-in
+                    </button>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                    {(selectedCase.followUpRecords || []).length === 0 ? (
+                      <div className="text-[11px] bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-slate-400 text-center">
+                        No follow-up check-ins recorded yet. Click "Log Follow-Up" to track recovery progress.
+                      </div>
+                    ) : (
+                      (selectedCase.followUpRecords || []).map(fu => (
+                        <div
+                          key={fu.id}
+                          className={`text-[11px] p-3 rounded-xl border space-y-1 ${
+                            fu.statusUpdate === 'CRITICAL' || fu.statusUpdate === 'DECEASED' || fu.statusUpdate === 'GETTING_WORSE'
+                              ? 'bg-rose-50 border-rose-200'
+                              : fu.statusUpdate === 'IMPROVING'
+                              ? 'bg-emerald-50 border-emerald-200'
+                              : 'bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold">
+                            <span className="flex items-center gap-1">
+                              {fu.statusUpdate === 'IMPROVING' ? (
+                                <TrendingUp className="w-3 h-3 text-emerald-600" />
+                              ) : fu.statusUpdate === 'GETTING_WORSE' || fu.statusUpdate === 'CRITICAL' ? (
+                                <TrendingDown className="w-3 h-3 text-rose-600" />
+                              ) : null}
+                              <span className="uppercase text-[10px] tracking-wide font-black">
+                                {fu.timeframe.replace('_', ' ')} • {fu.statusUpdate}
+                              </span>
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              {new Date(fu.recordedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+
+                          {fu.notes && <p className="text-slate-700 leading-snug">{fu.notes}</p>}
+
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                            <span>Recorded by: {fu.recordedBy}</span>
+                            {fu.escalationTriggered && (
+                              <span className="text-rose-600 font-bold bg-rose-100 px-1 rounded">
+                                Auto-Escalated
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: AUDIT TRAIL */}
+              {caseDetailTab === 'AUDIT' && (
+                <div className="space-y-3 animate-in fade-in">
                   <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                    <HeartPulse className="w-3.5 h-3.5 text-blue-600" />
-                    Follow-Up Evolution ({(selectedCase.followUpRecords || []).length})
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    Audit Trail ({(selectedCase.auditTrail || []).length} Logs)
                   </h4>
-                  <button
-                    onClick={() => setIsFollowUpModalOpen(true)}
-                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
-                  >
-                    + Add Check-in
-                  </button>
-                </div>
-
-                <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                  {(selectedCase.followUpRecords || []).length === 0 ? (
-                    <div className="text-[11px] bg-slate-50 p-3 rounded-lg border border-dashed border-slate-200 text-slate-400 text-center">
-                      No follow-up check-ins recorded yet. Click "Log Follow-Up" to track recovery progress.
-                    </div>
-                  ) : (
-                    (selectedCase.followUpRecords || []).map(fu => (
-                      <div
-                        key={fu.id}
-                        className={`text-[11px] p-2.5 rounded-lg border space-y-1 ${
-                          fu.statusUpdate === 'CRITICAL' || fu.statusUpdate === 'DECEASED' || fu.statusUpdate === 'GETTING_WORSE'
-                            ? 'bg-rose-50 border-rose-200'
-                            : fu.statusUpdate === 'IMPROVING'
-                            ? 'bg-emerald-50 border-emerald-200'
-                            : 'bg-slate-50 border-slate-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between font-bold">
-                          <span className="flex items-center gap-1">
-                            {fu.statusUpdate === 'IMPROVING' ? (
-                              <TrendingUp className="w-3 h-3 text-emerald-600" />
-                            ) : fu.statusUpdate === 'GETTING_WORSE' || fu.statusUpdate === 'CRITICAL' ? (
-                              <TrendingDown className="w-3 h-3 text-rose-600" />
-                            ) : null}
-                            <span className="uppercase text-[10px] tracking-wide font-black">
-                              {fu.timeframe.replace('_', ' ')} • {fu.statusUpdate}
-                            </span>
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            {new Date(fu.recordedAt).toLocaleDateString()}
-                          </span>
+                  <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                    {(selectedCase.auditTrail || []).map(log => (
+                      <div key={log.id} className="text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-0.5">
+                        <div className="flex justify-between font-bold text-slate-700">
+                          <span>{log.actorName} ({log.actorRole})</span>
+                          <span className="text-slate-400 font-normal">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-
-                        {fu.notes && <p className="text-slate-700 leading-snug">{fu.notes}</p>}
-
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
-                          <span>Recorded by: {fu.recordedBy}</span>
-                          {fu.escalationTriggered && (
-                            <span className="text-rose-600 font-bold bg-rose-100 px-1 rounded">
-                              Auto-Escalated
-                            </span>
-                          )}
-                        </div>
+                        <p className="text-slate-600">{log.details}</p>
                       </div>
-                    ))
-                  )}
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-              {/* Audit Trail */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  Audit Trail ({(selectedCase.auditTrail || []).length} Logs)
-                </h4>
-                <div className="max-h-36 overflow-y-auto space-y-2 pr-1">
-                  {(selectedCase.auditTrail || []).map(log => (
-                    <div key={log.id} className="text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-0.5">
-                      <div className="flex justify-between font-bold text-slate-700">
-                        <span>{log.actorName} ({log.actorRole})</span>
-                        <span className="text-slate-400 font-normal">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                      <p className="text-slate-600">{log.details}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
           ) : (
             <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-12 text-center text-slate-400 text-xs">

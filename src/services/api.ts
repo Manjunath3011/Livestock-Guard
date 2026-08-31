@@ -107,9 +107,9 @@ export const api = {
         list = list.filter(
           d =>
             d.name.toLowerCase().includes(q) ||
-            d.scientificName.toLowerCase().includes(q) ||
-            d.commonNames.some(c => c.toLowerCase().includes(q)) ||
-            d.causativeAgent.toLowerCase().includes(q)
+            (d.scientificName && d.scientificName.toLowerCase().includes(q)) ||
+            (d.commonNames && d.commonNames.some(c => c.toLowerCase().includes(q))) ||
+            (d.causativeAgent && d.causativeAgent.toLowerCase().includes(q))
         );
       }
       return list;
@@ -135,10 +135,10 @@ export const api = {
         const q = params.search.toLowerCase();
         list = list.filter(
           c =>
-            c.caseNumber.toLowerCase().includes(q) ||
-            c.villageName.toLowerCase().includes(q) ||
-            c.ownerName.toLowerCase().includes(q) ||
-            c.suspectedDiseases.some(s => s.diseaseName.toLowerCase().includes(q))
+            (c.caseNumber && c.caseNumber.toLowerCase().includes(q)) ||
+            (c.villageName && c.villageName.toLowerCase().includes(q)) ||
+            (c.ownerName && c.ownerName.toLowerCase().includes(q)) ||
+            (c.suspectedDiseases && c.suspectedDiseases.some(s => s.diseaseName && s.diseaseName.toLowerCase().includes(q)))
         );
       }
       return list;

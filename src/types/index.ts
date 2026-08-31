@@ -61,7 +61,7 @@ export type OutbreakStatus =
 
 export type AlertPriority = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
-export type LanguageCode = 'en' | 'hi' | 'kn' | 'te';
+export type LanguageCode = 'en' | 'hi' | 'kn' | 'te' | 'mr';
 
 export type AccountStatus =
   | 'PENDING_VERIFICATION'
@@ -329,12 +329,17 @@ export type HomeCareLevel =
   | 'LIMITED_SUPPORTIVE'
   | 'VETERINARY_ONLY'
   | 'EMERGENCY_ONLY'
-  | 'SUPPORTIVE_AND_VET';
+  | 'SUPPORTIVE_AND_VET'
+  | 'BASIC_SUPPORTIVE';
 
 export interface SupportiveCareStep {
+  order?: number;
   title: string;
-  desc: string;
+  desc?: string;
+  instruction?: string;
   icon?: string;
+  safetyLevel?: string;
+  targetSign?: string;
   category?: 'WATER' | 'FEED' | 'ENVIRONMENT' | 'SEPARATION' | 'HYGIENE' | 'MONITORING';
 }
 
@@ -580,6 +585,20 @@ export interface Case {
   createdAt: string;
   updatedAt: string;
   auditTrail: AuditLogEntry[];
+  hybridAssessment?: HybridRiskAssessment;
+  mlPrediction?: MLPredictionResult;
+  vaccinationStatusAtReport?: 'UP_TO_DATE' | 'OVERDUE' | 'UNVACCINATED';
+  symptomDurationDays?: number;
+  totalAnimalsInHerd?: number;
+  previousHealthHistory?: string[];
+  breed?: string;
+  ageYears?: number;
+  sex?: 'MALE' | 'FEMALE' | 'UNKNOWN';
+  previousDiseaseHistory?: string[];
+  vaccinationStatus?: 'UP_TO_DATE' | 'OVERDUE' | 'UNVACCINATED' | 'UNKNOWN';
+  confirmedDiseaseId?: string;
+  suspectedDiseaseId?: string;
+  assignedVeterinarianId?: string;
   weatherAtReport?: {
     temperatureC: number;
     humidityPct: number;
@@ -850,6 +869,176 @@ export interface SystemConfig {
     high: number; // 61
     critical: number; // 81
   };
+}
+
+// ==========================================
+// ML & HYBRID RISK ENGINE INTERFACES
+// ==========================================
+
+export interface MLDiseasePrediction {
+  diseaseId: string;
+  diseaseName: string;
+  probability: number; // 0.0 to 1.0 (calibrated model likelihood)
+  confidenceBand: 'LOW' | 'MEDIUM' | 'HIGH';
+  keyAssociatedFeatures: string[];
+}
+
+export interface MLPredictionFeatureInput {
+  species: Species;
+  ageYears?: number;
+  sex?: 'MALE' | 'FEMALE';
+  breed?: string;
+  symptoms: SymptomObservation[];
+  symptomDurationDays?: number;
+  previousDiseaseHistory?: string[];
+  vaccinationStatus?: 'UP_TO_DATE' | 'OVERDUE' | 'UNVACCINATED' | 'UNKNOWN';
+  vaccinationRecencyMonths?: number;
+  totalAnimalsInHerd: number;
+  affectedCount: number;
+  deadCount: number;
+  recoveredCount?: number;
+  nearbyCasesCount: number;
+  nearestCaseDistanceKm: number;
+  historicalOccurrenceRate?: number;
+  season: 'MONSOON' | 'WINTER' | 'SUMMER' | 'POST_MONSOON';
+  temperatureC: number;
+  humidityPct: number;
+  rainfallMm: number;
+  stateId: string;
+  districtId: string;
+  activeClusterPresent: boolean;
+}
+
+export interface MLModelMetadata {
+  modelVersion: string;
+  featureVersion: string;
+  modelArchitecture: string; // e.g. 'Multinomial Softmax + Gradient Feature Vectorizer'
+  trainingDatasetStatus: 'VALIDATED_PROTOTYPE_DATASET' | 'FIELD_BENCHMARK_DATASET';
+  totalTrainingSamples: number;
+  evaluationMetrics: {
+    macroPrecision: number;
+    macroRecall: number;
+    macroF1: number;
+    sampleAccuracy: number;
+    validationMethod: string;
+  };
+  lastTrainedDate: string;
+}
+
+export interface MLPredictionResult {
+  id: string;
+  modelVersion: string;
+  featureVersion: string;
+  predictionTimestamp: string;
+  predictionStatus: 'SCREENING_ONLY' | 'ANOMALOUS_INPUT';
+  topPrediction: MLDiseasePrediction;
+  predictions: MLDiseasePrediction[];
+  top3ProbabilitiesSum: number;
+  confidenceScore: number; // 0 to 100
+  featureImportanceVector: {
+    featureName: string;
+    importanceWeight: number;
+    contributionDirection: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  }[];
+  modelMetadata: MLModelMetadata;
+  screeningDisclaimer: string;
+}
+
+export interface ExplainableFactor {
+  category: 'SYMPTOMS' | 'PROXIMITY' | 'VACCINATION_GAP' | 'MORTALITY_VELOCITY' | 'ENVIRONMENT' | 'HERD_ATTACK_RATE';
+  title: string;
+  description: string;
+  weight: number;
+  severity: 'INFO' | 'WARNING' | 'ALERT' | 'CRITICAL';
+  isFlagged: boolean;
+}
+
+export interface HybridRiskAssessment {
+  id: string;
+  caseId?: string;
+  calculatedAt: string;
+  
+  // Composite Outputs
+  finalRiskLevel: RiskLevel;
+  finalRiskScore: number; // 0 to 100
+  riskLevelLabel: string;
+  
+  // Model & Engine Components
+  mlScreening: MLPredictionResult;
+  ruleEvidence: {
+    ruleMatchScore: number; // 0 to 100
+    ruleRiskLevel: RiskLevel;
+    topRuleSuspectedDiseases: SuspectedDiseaseMatch[];
+    activeOutbreakTriggered: boolean;
+    clusterDistanceKm: number;
+    nearbyCasesInRadius: number;
+  };
+
+  // Harmonized Suspected Condition
+  primarySuspectedDisease: {
+    diseaseId: string;
+    diseaseName: string;
+    combinedConfidencePct: number;
+    mlProbability: number;
+    ruleScore: number;
+    notifiable: boolean;
+    zoonotic: boolean;
+  };
+  rankedSuspectedDiseases: {
+    diseaseId: string;
+    diseaseName: string;
+    mlProbability: number;
+    ruleMatchPct: number;
+    hybridRankScore: number;
+  }[];
+
+  // Explainable AI & Factor Attribution
+  explainableFactors: ExplainableFactor[];
+  summaryExplanation: string;
+
+  // Integrated Decision Support System (DSS)
+  decisionSupport: {
+    // 1. Vaccination Action
+    vaccinationGuidance: {
+      status: 'UP_TO_DATE' | 'OVERDUE' | 'UNVACCINATED' | 'OUTBREAK_RING_REQUIRED' | 'UNKNOWN';
+      targetVaccine?: string;
+      routineRecommendation: string;
+      outbreakResponseRecommendation?: string;
+      contraindicationWarning: string;
+    };
+
+    // 2. Safe Supportive & Home Care
+    supportiveCare: {
+      isSafeForHomeCare: boolean;
+      homeCareLevel: HomeCareLevel;
+      immediateSteps: SupportiveCareStep[];
+      warningsAndAvoidance: string[];
+      emergencySigns: string[];
+      medicalNotice: string;
+    };
+
+    // 3. Veterinary Referral & Urgency
+    veterinaryReferral: {
+      urgency: 'ROUTINE' | 'MODERATE' | 'HIGH' | 'EMERGENCY';
+      actionSummary: string;
+      recommendedClinicalFocus: string[];
+      teleConsultAvailable: boolean;
+    };
+
+    // 4. Laboratory Confirmation Pathway
+    laboratoryPathway: {
+      confirmationRequired: boolean;
+      recommendedTest: 'RT_PCR' | 'ELISA' | 'BACTERIAL_CULTURE' | 'BLOOD_SMEAR_MICROSCOPY' | 'SEROLOGY' | 'ANTIGEN_RAPID';
+      sampleTypeRequired: string;
+      biosafetyCategory: string;
+      designatedLabTier: string;
+    };
+
+    // 5. Farm & District Biosecurity Directives
+    biosecurityDirectives: string[];
+  };
+
+  legalDisclaimer: string;
 }
 
 export * from './location';

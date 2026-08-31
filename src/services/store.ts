@@ -41,6 +41,8 @@ import {
   SEED_ADVISORIES
 } from '../data/seedData';
 import { assessLivestockRisk, DEFAULT_CONFIG } from './riskEngine';
+import { HybridRiskEngine } from './HybridRiskEngine';
+import { trainingCandidateQueueService } from './TrainingCandidateQueue';
 
 const STORAGE_KEYS = {
   CURRENT_USER: 'lg_current_user',
@@ -101,7 +103,18 @@ const SEED_TEMPORARY_ANIMALS: TemporaryAnimal[] = [
 function loadFromStorage<T>(key: string, fallback: T): T {
   try {
     const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : fallback;
+    if (!item || item === 'undefined' || item === 'null') {
+      return fallback;
+    }
+    const parsed = JSON.parse(item);
+    if (parsed === null || parsed === undefined) {
+      return fallback;
+    }
+    // If fallback is an array, ensure parsed is also an array
+    if (Array.isArray(fallback) && !Array.isArray(parsed)) {
+      return fallback;
+    }
+    return parsed;
   } catch (e) {
     console.warn(`Error loading key ${key} from storage:`, e);
     return fallback;
@@ -148,30 +161,31 @@ class LivestockGuardStore {
 
   private init() {
     const rawUsers = loadFromStorage<User[]>(STORAGE_KEYS.USERS, SEED_USERS);
-    this.users = rawUsers.map(u => ({
+    const validUsers = Array.isArray(rawUsers) && rawUsers.length > 0 ? rawUsers : SEED_USERS;
+    this.users = validUsers.map(u => ({
       ...u,
       accountStatus: u.accountStatus || 'VERIFIED'
     }));
-    this.farms = loadFromStorage(STORAGE_KEYS.FARMS, SEED_FARMS);
-    this.herds = loadFromStorage(STORAGE_KEYS.HERDS, SEED_HERDS);
-    this.animals = loadFromStorage(STORAGE_KEYS.ANIMALS, SEED_ANIMALS);
-    this.temporaryAnimals = loadFromStorage(STORAGE_KEYS.TEMPORARY_ANIMALS, SEED_TEMPORARY_ANIMALS);
-    this.cases = loadFromStorage(STORAGE_KEYS.CASES, SEED_CASES);
-    this.outbreaks = loadFromStorage(STORAGE_KEYS.OUTBREAKS, SEED_OUTBREAKS);
-    this.labSamples = loadFromStorage(STORAGE_KEYS.LAB_SAMPLES, SEED_LAB_SAMPLES);
-    this.vaccinations = loadFromStorage(STORAGE_KEYS.VACCINATIONS, SEED_VACCINATIONS);
-    this.treatments = loadFromStorage(STORAGE_KEYS.TREATMENTS, SEED_TREATMENTS);
-    this.mortalityReports = loadFromStorage(STORAGE_KEYS.MORTALITY, SEED_MORTALITY_REPORTS);
-    this.alerts = loadFromStorage(STORAGE_KEYS.ALERTS, SEED_ALERTS);
-    this.weather = loadFromStorage(STORAGE_KEYS.WEATHER, SEED_WEATHER);
-    this.systemConfig = loadFromStorage(STORAGE_KEYS.SYSTEM_CONFIG, DEFAULT_CONFIG);
-    this.offlineQueue = loadFromStorage(STORAGE_KEYS.OFFLINE_QUEUE, []);
-    this.fieldVisits = loadFromStorage(STORAGE_KEYS.FIELD_VISITS, SEED_FIELD_VISITS);
-    this.advisories = loadFromStorage(STORAGE_KEYS.ADVISORIES, SEED_ADVISORIES);
-    this.currentLanguage = loadFromStorage(STORAGE_KEYS.LANGUAGE, 'en');
-    this.isSimulatedOffline = loadFromStorage(STORAGE_KEYS.IS_OFFLINE, false);
-    this.isDemoModeActive = loadFromStorage(STORAGE_KEYS.DEMO_MODE, false);
-    this.isUserAuthenticated = loadFromStorage(STORAGE_KEYS.IS_LOGGED_IN, true);
+    this.farms = loadFromStorage(STORAGE_KEYS.FARMS, SEED_FARMS) || SEED_FARMS;
+    this.herds = loadFromStorage(STORAGE_KEYS.HERDS, SEED_HERDS) || SEED_HERDS;
+    this.animals = loadFromStorage(STORAGE_KEYS.ANIMALS, SEED_ANIMALS) || SEED_ANIMALS;
+    this.temporaryAnimals = loadFromStorage(STORAGE_KEYS.TEMPORARY_ANIMALS, SEED_TEMPORARY_ANIMALS) || SEED_TEMPORARY_ANIMALS;
+    this.cases = loadFromStorage(STORAGE_KEYS.CASES, SEED_CASES) || SEED_CASES;
+    this.outbreaks = loadFromStorage(STORAGE_KEYS.OUTBREAKS, SEED_OUTBREAKS) || SEED_OUTBREAKS;
+    this.labSamples = loadFromStorage(STORAGE_KEYS.LAB_SAMPLES, SEED_LAB_SAMPLES) || SEED_LAB_SAMPLES;
+    this.vaccinations = loadFromStorage(STORAGE_KEYS.VACCINATIONS, SEED_VACCINATIONS) || SEED_VACCINATIONS;
+    this.treatments = loadFromStorage(STORAGE_KEYS.TREATMENTS, SEED_TREATMENTS) || SEED_TREATMENTS;
+    this.mortalityReports = loadFromStorage(STORAGE_KEYS.MORTALITY, SEED_MORTALITY_REPORTS) || SEED_MORTALITY_REPORTS;
+    this.alerts = loadFromStorage(STORAGE_KEYS.ALERTS, SEED_ALERTS) || SEED_ALERTS;
+    this.weather = loadFromStorage(STORAGE_KEYS.WEATHER, SEED_WEATHER) || SEED_WEATHER;
+    this.systemConfig = loadFromStorage(STORAGE_KEYS.SYSTEM_CONFIG, DEFAULT_CONFIG) || DEFAULT_CONFIG;
+    this.offlineQueue = loadFromStorage(STORAGE_KEYS.OFFLINE_QUEUE, []) || [];
+    this.fieldVisits = loadFromStorage(STORAGE_KEYS.FIELD_VISITS, SEED_FIELD_VISITS) || SEED_FIELD_VISITS;
+    this.advisories = loadFromStorage(STORAGE_KEYS.ADVISORIES, SEED_ADVISORIES) || SEED_ADVISORIES;
+    this.currentLanguage = loadFromStorage(STORAGE_KEYS.LANGUAGE, 'en') || 'en';
+    this.isSimulatedOffline = loadFromStorage(STORAGE_KEYS.IS_OFFLINE, false) || false;
+    this.isDemoModeActive = loadFromStorage(STORAGE_KEYS.DEMO_MODE, false) || false;
+    this.isUserAuthenticated = loadFromStorage(STORAGE_KEYS.IS_LOGGED_IN, true) ?? true;
     
     const savedAuthUser = loadFromStorage<User | null>(STORAGE_KEYS.AUTH_USER, null);
     if (savedAuthUser) {
@@ -383,11 +397,11 @@ class LivestockGuardStore {
 
   // Users & Roles
   public getCurrentUser(): User {
-    return this.currentUser;
+    return this.currentUser || this.authenticatedUser || (this.users && this.users[0]) || SEED_USERS[0];
   }
 
   public getAllUsers(): User[] {
-    return this.users;
+    return this.users || SEED_USERS;
   }
 
   public addUser(user: User): void {
@@ -436,83 +450,99 @@ class LivestockGuardStore {
 
   // Data Getters
   public getFarms(): Farm[] {
-    return this.farms;
+    return this.farms || [];
   }
 
   public getHerds(): Herd[] {
-    return this.herds;
+    return this.herds || [];
   }
 
   public getAnimals(): Animal[] {
-    return this.animals;
+    return this.animals || [];
   }
 
   public getAnimalById(id: string): Animal | undefined {
-    return this.animals.find(a => a.id === id || a.tagNumber === id);
+    return (this.animals || []).find(a => a.id === id || a.tagNumber === id);
   }
 
   public getTemporaryAnimals(): TemporaryAnimal[] {
-    return this.temporaryAnimals;
+    return this.temporaryAnimals || [];
   }
 
   public getTemporaryAnimalById(id: string): TemporaryAnimal | undefined {
-    return this.temporaryAnimals.find(a => a.id === id || a.temporaryTag === id);
+    return (this.temporaryAnimals || []).find(a => a.id === id || a.temporaryTag === id);
   }
 
   public getCases(): Case[] {
-    return this.cases;
+    return this.cases || [];
   }
 
   public getCaseById(id: string): Case | undefined {
-    return this.cases.find(c => c.id === id || c.caseNumber === id);
+    return (this.cases || []).find(c => c.id === id || c.caseNumber === id);
   }
 
   public getOutbreaks(): Outbreak[] {
-    return this.outbreaks;
+    return this.outbreaks || [];
   }
 
   public getOutbreakById(id: string): Outbreak | undefined {
-    return this.outbreaks.find(o => o.id === id || o.outbreakCode === id);
+    return (this.outbreaks || []).find(o => o.id === id || o.outbreakCode === id);
   }
 
   public getLabSamples(): LabSample[] {
-    return this.labSamples;
+    return this.labSamples || [];
   }
 
   public getVaccinations(): VaccinationRecord[] {
-    return this.vaccinations;
+    return this.vaccinations || [];
   }
 
   public getTreatments(): TreatmentRecord[] {
-    return this.treatments;
+    return this.treatments || [];
   }
 
   public getMortalityReports(): MortalityReport[] {
-    return this.mortalityReports;
+    return this.mortalityReports || [];
   }
 
   public getFieldVisits(): FieldVisit[] {
-    return this.fieldVisits;
+    return this.fieldVisits || [];
   }
 
   public getAdvisories(): Advisory[] {
-    return this.advisories;
+    return this.advisories || [];
   }
 
   public getAlerts(): Alert[] {
-    return this.alerts;
+    return this.alerts || [];
   }
 
   public getWeather(districtId: string = 'dt_pune'): WeatherData {
-    return this.weather[districtId] || SEED_WEATHER['dt_pune'];
+    const defaultWeather: WeatherData = {
+      districtId: 'dt_pune',
+      districtName: 'Pune',
+      stateName: 'Maharashtra',
+      temperatureC: 28.4,
+      humidityPct: 78,
+      rainfallMm: 14.2,
+      windSpeedKph: 12,
+      condition: 'Humid & Overcast',
+      season: 'MONSOON',
+      vectorRiskIndex: 'HIGH',
+      thermalStressIndex: 'ALERT',
+      historicalCorrelationInsight: 'High humidity (>75%) coupled with monsoon waterlogging increases vector breeding and FMD viral survivability.'
+    };
+    if (!this.weather) return defaultWeather;
+    const key = districtId || 'dt_pune';
+    return this.weather[key] || this.weather['dt_pune'] || defaultWeather;
   }
 
   public getSystemConfig(): SystemConfig {
-    return this.systemConfig;
+    return this.systemConfig || DEFAULT_CONFIG;
   }
 
   public getOfflineQueue(): OfflineSyncItem[] {
-    return this.offlineQueue;
+    return this.offlineQueue || [];
   }
 
   // ==========================================
@@ -520,137 +550,147 @@ class LivestockGuardStore {
   // ==========================================
 
   public getScopedCases(): Case[] {
-    const role = this.currentUser.role;
+    const role = this.currentUser?.role;
+    const allCases = this.cases || [];
     if (role === 'FARMER') {
-      return this.cases.filter(
-        c => (this.currentUser.farmId && c.farmId === this.currentUser.farmId) ||
-             c.ownerName === this.currentUser.name ||
-             c.ownerPhone === this.currentUser.phone
+      return allCases.filter(
+        c => (this.currentUser?.farmId && c.farmId === this.currentUser?.farmId) ||
+             (this.currentUser?.name && c.ownerName === this.currentUser?.name) ||
+             (this.currentUser?.phone && c.ownerPhone === this.currentUser?.phone)
       );
     }
     if (role === 'FIELD_WORKER') {
-      return this.cases.filter(
-        c => c.villageName.toLowerCase().includes('malegaon') ||
-             c.villageName.toLowerCase().includes('shirsuphal') ||
-             c.villageName.toLowerCase().includes('vithalwadi') ||
-             c.districtName.toLowerCase().includes('pune')
+      return allCases.filter(
+        c => c.villageName?.toLowerCase().includes('malegaon') ||
+             c.villageName?.toLowerCase().includes('shirsuphal') ||
+             c.villageName?.toLowerCase().includes('vithalwadi') ||
+             c.districtName?.toLowerCase().includes('pune')
       );
     }
     if (role === 'VETERINARIAN') {
-      return this.cases.filter(
-        c => c.districtName.toLowerCase().includes('pune') ||
-             c.districtName.toLowerCase().includes('satara')
+      return allCases.filter(
+        c => c.districtName?.toLowerCase().includes('pune') ||
+             c.districtName?.toLowerCase().includes('satara')
       );
     }
     if (role === 'LABORATORY_STAFF') {
-      return this.cases.filter(c => c.status === 'LAB_TESTING' || c.sampleIds?.length || c.status === 'SAMPLE_REQUESTED' || c.status === 'CONFIRMED' || c.status === 'RULED_OUT');
+      return allCases.filter(c => c.status === 'LAB_TESTING' || (c.sampleIds && c.sampleIds.length > 0) || c.status === 'SAMPLE_REQUESTED' || c.status === 'CONFIRMED' || c.status === 'RULED_OUT');
     }
     if (role === 'DISTRICT_OFFICIAL') {
-      return this.cases.filter(c => c.districtName.toLowerCase().includes('pune') || c.stateId === 'st_mah');
+      return allCases.filter(c => c.districtName?.toLowerCase().includes('pune') || c.stateId === 'st_mah');
     }
     // STATE_ADMIN & SYSTEM_ADMIN
-    return this.cases;
+    return allCases;
   }
 
   public getScopedAnimals(): Animal[] {
-    const role = this.currentUser.role;
+    const role = this.currentUser?.role;
+    const allAnimals = this.animals || [];
     if (role === 'FARMER') {
-      return this.animals.filter(
-        a => (this.currentUser.farmId && a.farmId === this.currentUser.farmId) ||
-             a.ownerName === this.currentUser.name
+      return allAnimals.filter(
+        a => (this.currentUser?.farmId && a.farmId === this.currentUser?.farmId) ||
+             (this.currentUser?.name && a.ownerName === this.currentUser?.name)
       );
     }
     if (role === 'FIELD_WORKER') {
-      return this.animals.filter(
+      return allAnimals.filter(
         a => a.farmId === 'farm_01' || a.farmId === 'farm_02' || a.farmId === 'farm_03'
       );
     }
-    return this.animals;
+    return allAnimals;
   }
 
   public getScopedHerds(): Herd[] {
-    const role = this.currentUser.role;
+    const role = this.currentUser?.role;
+    const allHerds = this.herds || [];
     if (role === 'FARMER') {
-      return this.herds.filter(
-        h => (this.currentUser.farmId && h.farmId === this.currentUser.farmId) ||
-             h.ownerName === this.currentUser.name
+      return allHerds.filter(
+        h => (this.currentUser?.farmId && h.farmId === this.currentUser?.farmId) ||
+             (this.currentUser?.name && h.ownerName === this.currentUser?.name)
       );
     }
     if (role === 'FIELD_WORKER') {
-      return this.herds.filter(h => h.farmId === 'farm_01' || h.farmId === 'farm_02');
+      return allHerds.filter(h => h.farmId === 'farm_01' || h.farmId === 'farm_02');
     }
-    return this.herds;
+    return allHerds;
   }
 
   public getScopedFarms(): Farm[] {
-    const role = this.currentUser.role;
+    const role = this.currentUser?.role;
+    const allFarms = this.farms || [];
     if (role === 'FARMER') {
-      return this.farms.filter(
-        f => f.id === this.currentUser.farmId || f.ownerName === this.currentUser.name
+      return allFarms.filter(
+        f => (this.currentUser?.farmId && f.id === this.currentUser?.farmId) || (this.currentUser?.name && f.ownerName === this.currentUser?.name)
       );
     }
     if (role === 'FIELD_WORKER') {
-      return this.farms.filter(f => f.districtId === 'dt_pune' || f.id === 'farm_01' || f.id === 'farm_02' || f.id === 'farm_03');
+      return allFarms.filter(f => f.districtId === 'dt_pune' || f.id === 'farm_01' || f.id === 'farm_02' || f.id === 'farm_03');
     }
-    return this.farms;
+    return allFarms;
   }
 
   public getScopedLabSamples(): LabSample[] {
-    const role = this.currentUser.role;
+    const role = this.currentUser?.role;
+    const allSamples = this.labSamples || [];
     if (role === 'FARMER') {
       const myCaseIds = new Set(this.getScopedCases().map(c => c.id));
-      return this.labSamples.filter(s => myCaseIds.has(s.caseId));
+      return allSamples.filter(s => myCaseIds.has(s.caseId));
     }
     if (role === 'FIELD_WORKER') {
-      return this.labSamples.filter(s => s.collectedBy === this.currentUser.name || s.collectedBy.includes('Sunita') || s.laboratoryId === 'lab_pune_dis');
+      return allSamples.filter(s => (this.currentUser?.name && s.collectedBy === this.currentUser?.name) || s.collectedBy?.includes('Sunita') || s.laboratoryId === 'lab_pune_dis');
     }
-    return this.labSamples;
+    return allSamples;
   }
 
   public getScopedVaccinations(): VaccinationRecord[] {
-    const role = this.currentUser.role;
+    const role = this.currentUser?.role;
+    const allVax = this.vaccinations || [];
     if (role === 'FARMER') {
       const myAnimalIds = new Set(this.getScopedAnimals().map(a => a.id));
-      return this.vaccinations.filter(v => (v.animalId && myAnimalIds.has(v.animalId)) || (this.currentUser.farmId && v.farmId === this.currentUser.farmId));
+      return allVax.filter(v => (v.animalId && myAnimalIds.has(v.animalId)) || (this.currentUser?.farmId && v.farmId === this.currentUser?.farmId));
     }
     if (role === 'FIELD_WORKER') {
-      return this.vaccinations.filter(v => v.administeredBy === this.currentUser.name || v.administeredBy.includes('Sunita') || v.villageName?.includes('Malegaon') || v.villageName?.includes('Shirsuphal'));
+      return allVax.filter(v => (this.currentUser?.name && v.administeredBy === this.currentUser?.name) || v.administeredBy?.includes('Sunita') || v.villageName?.includes('Malegaon') || v.villageName?.includes('Shirsuphal'));
     }
-    return this.vaccinations;
+    return allVax;
   }
 
   public getScopedMortalityReports(): MortalityReport[] {
-    const role = this.currentUser.role;
+    const role = this.currentUser?.role;
+    const allMort = this.mortalityReports || [];
     if (role === 'FARMER') {
-      return this.mortalityReports.filter(
-        m => (this.currentUser.farmId && m.farmId === this.currentUser.farmId) ||
-             m.ownerName === this.currentUser.name
+      return allMort.filter(
+        m => (this.currentUser?.farmId && m.farmId === this.currentUser?.farmId) ||
+             (this.currentUser?.name && m.ownerName === this.currentUser?.name)
       );
     }
     if (role === 'FIELD_WORKER') {
-      return this.mortalityReports.filter(m => m.districtName.toLowerCase().includes('pune') || m.villageName.toLowerCase().includes('malegaon') || m.villageName.toLowerCase().includes('vithalwadi'));
+      return allMort.filter(m => m.districtName?.toLowerCase().includes('pune') || m.villageName?.toLowerCase().includes('malegaon') || m.villageName?.toLowerCase().includes('vithalwadi'));
     }
-    return this.mortalityReports;
+    return allMort;
   }
 
   public getScopedAlerts(): Alert[] {
-    const role = this.currentUser.role;
-    return this.alerts.filter(a => a.targetRoles.includes(role) || a.targetRoles.length === 0);
+    const role = this.currentUser?.role;
+    const allAlerts = this.alerts || [];
+    return allAlerts.filter(a => !a.targetRoles || a.targetRoles.length === 0 || (role && a.targetRoles.includes(role)));
   }
 
   public getScopedFieldVisits(): FieldVisit[] {
-    const role = this.currentUser.role;
+    const role = this.currentUser?.role;
+    const allVisits = this.fieldVisits || [];
     if (role === 'FARMER') {
-      return this.fieldVisits.filter(v => (this.currentUser.farmId && v.farmId === this.currentUser.farmId) || v.farmerName === this.currentUser.name);
+      return allVisits.filter(v => (this.currentUser?.farmId && v.farmId === this.currentUser?.farmId) || (this.currentUser?.name && v.farmerName === this.currentUser?.name));
     }
     if (role === 'FIELD_WORKER') {
-      return this.fieldVisits.filter(v => v.assignedWorkerId === this.currentUser.id || v.assignedWorkerName === this.currentUser.name || v.villageName.includes('Malegaon') || v.villageName.includes('Shirsuphal'));
+      return allVisits.filter(v => (this.currentUser?.id && v.assignedWorkerId === this.currentUser?.id) || (this.currentUser?.name && v.assignedWorkerName === this.currentUser?.name) || v.villageName?.includes('Malegaon') || v.villageName?.includes('Shirsuphal'));
     }
-    return this.fieldVisits;
+    return allVisits;
   }
 
   public getScopedAdvisories(): Advisory[] {
-    return this.advisories.filter(a => a.isActive);
+    const allAdv = this.advisories || [];
+    return allAdv.filter(a => a.isActive);
   }
 
   // Mutations
@@ -816,9 +856,9 @@ class LivestockGuardStore {
 
   public createCase(caseData: Omit<Case, 'id' | 'caseNumber' | 'createdAt' | 'updatedAt' | 'auditTrail' | 'riskScore' | 'riskLevel' | 'suspectedDiseases'> & { customRisk?: { score: number; level: any; suspected: any[] } }): Case {
     const timestamp = new Date().toISOString();
-    const caseNum = `CAS-${caseData.stateId.toUpperCase().slice(-2)}-${caseData.districtName.toUpperCase().slice(0, 3)}-2026-${String(this.cases.length + 1).padStart(4, '0')}`;
+    const caseNum = `CAS-${(caseData.stateId || 'IN').toUpperCase().slice(-2)}-${(caseData.districtName || 'DIS').toUpperCase().slice(0, 3)}-2026-${String((this.cases || []).length + 1).padStart(4, '0')}`;
 
-    // Compute automatic risk assessment
+    // Compute automatic risk assessment (Rule-Based Engine)
     const riskResult = assessLivestockRisk({
       species: caseData.species,
       symptoms: caseData.symptoms,
@@ -826,9 +866,33 @@ class LivestockGuardStore {
       deadCount: caseData.deadCount,
       latitude: caseData.latitude,
       longitude: caseData.longitude,
+      vaccinationStatus: caseData.vaccinationStatusAtReport,
       existingCases: this.cases,
       activeOutbreaks: this.outbreaks,
       config: this.systemConfig
+    });
+
+    // Compute Hybrid Decision Support Assessment (Rule + ML + Knowledge Base)
+    const hybridResult = HybridRiskEngine.evaluate({
+      species: caseData.species,
+      symptoms: caseData.symptoms,
+      symptomDurationDays: caseData.symptomDurationDays || 3,
+      previousDiseaseHistory: caseData.previousHealthHistory,
+      affectedCount: caseData.affectedCount,
+      deadCount: caseData.deadCount,
+      latitude: caseData.latitude,
+      longitude: caseData.longitude,
+      stateId: caseData.stateId,
+      districtId: caseData.districtId,
+      villageId: caseData.villageId,
+      vaccinationStatus: caseData.vaccinationStatusAtReport,
+      existingCases: this.cases,
+      activeOutbreaks: this.outbreaks,
+      weatherCondition: caseData.weatherAtReport ? {
+        humidityPct: caseData.weatherAtReport.humidityPct,
+        temperatureC: caseData.weatherAtReport.temperatureC,
+        rainfallMm: caseData.weatherAtReport.rainfallMm
+      } : undefined
     });
 
     const isUntagged = caseData.animalStatus === 'UNTAGGED' || !!caseData.temporaryAnimalId;
@@ -840,20 +904,22 @@ class LivestockGuardStore {
       ...caseData,
       id: `cas_${Date.now()}`,
       caseNumber: caseNum,
-      riskScore: riskResult.score,
-      riskLevel: riskResult.level,
+      riskScore: hybridResult.finalRiskScore,
+      riskLevel: hybridResult.finalRiskLevel,
       suspectedDiseases: riskResult.suspectedDiseases,
+      hybridAssessment: hybridResult,
+      mlPrediction: hybridResult.mlScreening,
       createdAt: timestamp,
       updatedAt: timestamp,
       auditTrail: [
         {
           id: `aud_${Date.now()}`,
           timestamp,
-          actorId: this.currentUser.id,
-          actorName: this.currentUser.name,
-          actorRole: this.currentUser.role,
+          actorId: this.currentUser?.id || 'usr_unknown',
+          actorName: this.currentUser?.name || 'User',
+          actorRole: this.currentUser?.role || 'FARMER',
           action: 'CASE_CREATED',
-          details: `Reported ${caseData.symptoms.length} symptom(s) with ${riskResult.level} screening risk.${isUntagged ? ` Registered for untagged animal (${caseData.temporaryTag || 'Temporary ID generated'}).` : ''}${historyDetail}`
+          details: `Reported ${(caseData.symptoms || []).length} symptom(s) with ${hybridResult.finalRiskLevel} screening risk (ML Likelihood: ${Math.round(((hybridResult.mlScreening?.topPrediction?.probability) || 0.5) * 100)}%).${isUntagged ? ` Registered for untagged animal (${caseData.temporaryTag || 'Temporary ID generated'}).` : ''}${historyDetail}`
         }
       ]
     };
@@ -929,6 +995,19 @@ class LivestockGuardStore {
           a.activeCaseId = undefined;
           saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
         }
+      }
+    }
+
+    // Lab/Veterinary Feedback Loop: Queue confirmed case as potential training candidate
+    if (status === 'CONFIRMED' && this.currentUser.role === 'VETERINARIAN') {
+      try {
+        trainingCandidateQueueService.enqueueVeterinaryValidatedCase(
+          c,
+          this.currentUser.name,
+          c.confirmedDiseaseId || c.suspectedDiseaseId || 'dis_other_healthy'
+        );
+      } catch (err) {
+        console.warn('Could not enqueue training candidate', err);
       }
     }
 
@@ -1076,6 +1155,14 @@ class LivestockGuardStore {
     if (c) {
       if (result === 'POSITIVE') {
         this.updateCaseStatus(c.id, 'CONFIRMED', `Laboratory test (${sample.testRequested}) returned POSITIVE for ${sample.suspectedDiseaseName}.`);
+        
+        // Lab feedback loop: Enqueue gold-standard training record
+        try {
+          trainingCandidateQueueService.enqueueLabConfirmedCase(c, sample, this.currentUser.name);
+        } catch (err) {
+          console.warn('Could not enqueue lab-confirmed training candidate', err);
+        }
+
         this.createAlert({
           title: `LAB CONFIRMED: ${sample.suspectedDiseaseName} in ${c.villageName}`,
           message: `Sample ${sample.sampleCode} positive. Immediate biosecurity and ring containment required.`,
@@ -1328,7 +1415,7 @@ class LivestockGuardStore {
 
   // Offline Sync Engine
   public syncPendingOfflineRecords(): { success: boolean; count: number } {
-    const count = this.offlineQueue.length;
+    const count = (this.offlineQueue || []).length;
     this.offlineQueue = [];
     saveToStorage(STORAGE_KEYS.OFFLINE_QUEUE, []);
     this.isSimulatedOffline = false;

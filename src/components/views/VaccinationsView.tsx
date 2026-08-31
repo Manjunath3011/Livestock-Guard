@@ -3,6 +3,7 @@ import { VaccinationRecord, Animal, User } from '../../types';
 import { VACCINES_LIST } from '../../data/knowledgeBase';
 import { store } from '../../services/store';
 import { Modal } from '../common/Modal';
+import { useTranslation } from '../../i18n/translations';
 import { Syringe, PlusCircle, CheckCircle, Clock, AlertTriangle, Calendar } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -17,6 +18,7 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
   animals,
   currentUser
 }) => {
+  const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAnimalId, setSelectedAnimalId] = useState<string>(animals[0]?.id || '');
   const [selectedVaccineId, setSelectedVaccineId] = useState<string>(VACCINES_LIST[0]?.id || 'vac_fmd');
@@ -66,13 +68,13 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wider mb-1">
             <Syringe className="w-4 h-4" />
-            National Livestock Immunization Registry
+            {t('vaccinations', 'National Livestock Immunization Registry')}
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Vaccinations ({vaccinations.length} Logged Doses)
+            {t('vaccinations', 'Vaccinations')} ({(vaccinations || []).length} {t('dosesAdministered', 'Logged Doses')})
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Track batch numbers, booster schedules, cold-chain compliance and ring immunization logs.
+            {t('routinePrevention', 'Track batch numbers, booster schedules, cold-chain compliance and ring immunization logs.')}
           </p>
         </div>
 
@@ -81,7 +83,7 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-blue-700/20 cursor-pointer"
         >
           <PlusCircle className="w-4 h-4" />
-          Log Vaccination Dose
+          {t('recordVaccination', 'Log Vaccination Dose')}
         </button>
       </div>
 
@@ -91,13 +93,13 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3.5">Animal Ear Tag</th>
-                <th className="px-4 py-3.5">Target Disease</th>
-                <th className="px-4 py-3.5">Vaccine Product / Batch</th>
-                <th className="px-4 py-3.5">Administered Date</th>
-                <th className="px-4 py-3.5">Next Booster Due</th>
-                <th className="px-4 py-3.5">Vaccinator</th>
-                <th className="px-4 py-3.5 text-right">Status</th>
+                <th className="px-4 py-3.5">{t('earTagId', 'Animal Ear Tag')}</th>
+                <th className="px-4 py-3.5">{t('suspectedDisease', 'Target Disease')}</th>
+                <th className="px-4 py-3.5">{t('vaccineProduct', 'Vaccine Product / Batch')}</th>
+                <th className="px-4 py-3.5">{t('date', 'Administered Date')}</th>
+                <th className="px-4 py-3.5">{t('nextDue', 'Next Booster Due')}</th>
+                <th className="px-4 py-3.5">{t('administeredBy', 'Vaccinator')}</th>
+                <th className="px-4 py-3.5 text-right">{t('status', 'Status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -126,7 +128,7 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
                     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                       vac.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'
                     }`}>
-                      {vac.status}
+                      {vac.status === 'COMPLETED' ? t('completed', 'COMPLETED') : t('pending', 'PENDING')}
                     </span>
                   </td>
                 </tr>
@@ -140,14 +142,14 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Administer Livestock Vaccine"
-        subtitle="Record individual vaccination certificate with cold-chain batch validation."
+        title={t('recordVaccination', 'Administer Livestock Vaccine')}
+        subtitle={t('routinePrevention', 'Record individual vaccination certificate with cold-chain batch validation.')}
         maxWidth="lg"
       >
         <form onSubmit={handleLogVaccine} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Select Animal Ear Tag *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">{t('earTagId', 'Select Animal Ear Tag')} *</label>
               <select
                 value={selectedAnimalId}
                 onChange={e => setSelectedAnimalId(e.target.value)}
@@ -162,7 +164,7 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Vaccine Formula *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">{t('vaccineProduct', 'Vaccine Formula')} *</label>
               <select
                 value={selectedVaccineId}
                 onChange={e => setSelectedVaccineId(e.target.value)}
@@ -177,7 +179,7 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Vaccine Batch / Lot Number *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">{t('batchNumber', 'Vaccine Batch / Lot Number')} *</label>
               <input
                 type="text"
                 required
@@ -188,7 +190,7 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Date Administered *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">{t('date', 'Date Administered')} *</label>
               <input
                 type="date"
                 required
@@ -205,13 +207,13 @@ export const VaccinationsView: React.FC<VaccinationsViewProps> = ({
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
-              Cancel
+              {t('cancel', 'Cancel')}
             </button>
             <button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-md cursor-pointer"
             >
-              Save Vaccination Record
+              {t('save', 'Save Vaccination Record')}
             </button>
           </div>
         </form>

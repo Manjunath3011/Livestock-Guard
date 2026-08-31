@@ -12,11 +12,15 @@ import {
 import { SYMPTOMS_LIST, LOCATION_DATA } from '../../data/knowledgeBase';
 import { store } from '../../services/store';
 import { assessLivestockRisk } from '../../services/riskEngine';
+import { HybridRiskEngine } from '../../services/HybridRiskEngine';
+import { HybridDecisionSupportCard } from '../common/HybridDecisionSupportCard';
 import { extractSymptomsFromNaturalLanguage } from '../../services/aiTriage';
 import { RiskBadge } from '../common/RiskBadge';
+import { getTerminology } from '../../utils/terminology';
 import { IndiaLocationPicker } from '../common/IndiaLocationPicker';
 import { NormalizedLocationSelection } from '../../types/location';
 import { indiaLocationService } from '../../services/IndiaLocationService';
+import { useTranslation } from '../../i18n/translations';
 import {
   Stethoscope,
   MapPin,
@@ -108,6 +112,9 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
   const [selectedHistoricalCaseId, setSelectedHistoricalCaseId] = useState<string | null>(null);
   const [historyRelationshipType, setHistoryRelationshipType] = useState<'SAME_HERD_ONGOING_CLUSTER' | 'RECURRENCE' | 'SUSPECTED_SPREAD' | 'UNLINKED_NEW_ISSUE'>('UNLINKED_NEW_ISSUE');
   const [historyNotes, setHistoryNotes] = useState<string>('');
+  const [previousHistorySelection, setPreviousHistorySelection] = useState<'YES' | 'NO' | 'UNKNOWN'>('NO');
+  const [selectedPastDiseases, setSelectedPastDiseases] = useState<string[]>([]);
+  const [symptomDuration, setSymptomDuration] = useState<'LESS_THAN_DAY' | '1_TO_3_DAYS' | '4_TO_7_DAYS' | 'MORE_THAN_WEEK'>('1_TO_3_DAYS');
 
   // ==========================================
   // STEP 3: STRUCTURED SYMPTOMS & NLP
@@ -236,7 +243,7 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
   const weather = store.getWeather();
 
   const nearbyCasesCount = useMemo(() => {
-    return existingCases.filter(c => c.status !== 'RESOLVED').length;
+    return (existingCases || []).filter(c => c.status !== 'RESOLVED').length;
   }, [existingCases]);
 
   // Auto-generate Temporary Tag preview
@@ -265,27 +272,87 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
   // Convert map to array
   const symptomsArray = useMemo(() => Object.values(selectedSymptoms), [selectedSymptoms]);
 
-  // Real-Time Risk Assessment
-  const riskAssessment = useMemo(() => {
-    return assessLivestockRisk({
+  // Real-Time Rule & ML Hybrid Risk Assessment
+  const hybridAssessment = useMemo(() => {
+    const durationDays = symptomDuration === 'MORE_THAN_WEEK' ? 8 : symptomDuration === '4_TO_7_DAYS' ? 5 : symptomDuration === '1_TO_3_DAYS' ? 2 : 1;
+    return HybridRiskEngine.evaluate({
       species: selectedSpecies,
       symptoms: symptomsArray,
+      symptomDurationDays: durationDays,
+      previousDiseaseHistory: previousHistorySelection === 'YES' ? selectedPastDiseases : [],
       affectedCount,
+      totalAnimalsInHerd: totalAnimals,
       deadCount,
       latitude: activeLocation.latitude,
       longitude: activeLocation.longitude,
+      stateId: activeLocation.stateId,
+      districtId: activeLocation.districtId,
+      villageId: activeLocation.villageId,
       vaccinationStatus,
       existingCases,
       activeOutbreaks,
-      config: store.getSystemConfig()
+      weatherCondition: {
+        humidityPct: weather.humidityPct,
+        temperatureC: weather.temperatureC,
+        rainfallMm: weather.rainfallMm,
+        season: weather.season
+      }
     });
-  }, [selectedSpecies, symptomsArray, affectedCount, deadCount, activeLocation, vaccinationStatus, existingCases, activeOutbreaks]);
+  }, [
+    selectedSpecies,
+    symptomsArray,
+    symptomDuration,
+    previousHistorySelection,
+    selectedPastDiseases,
+    affectedCount,
+    totalAnimals,
+    deadCount,
+    activeLocation,
+    vaccinationStatus,
+    existingCases,
+    activeOutbreaks,
+    weather
+  ]);
+
+  // Backward compatibility alias for legacy views
+  const riskAssessment = useMemo(() => {
+    return {
+      level: hybridAssessment.finalRiskLevel,
+      score: hybridAssessment.finalRiskScore,
+      suspectedDiseases: (hybridAssessment.ruleEvidence?.topRuleSuspectedDiseases || []).map(d => ({
+        diseaseId: d.diseaseId,
+        diseaseName: d.diseaseName,
+        scientificName: d.scientificName,
+        confidence: d.confidenceLevel === 'HIGH' ? 'high' : d.confidenceLevel === 'MODERATE' ? 'medium' : 'low',
+        matchedSymptoms: d.matchingSymptoms,
+        screeningScore: d.screeningScore,
+        farmerFriendlyExplanation: d.farmerFriendlyExplanation,
+        keyDifferentiators: d.keyDifferentiators || [],
+        homeCareLevel: d.homeCareLevel
+      })),
+      supportiveCare: hybridAssessment.decisionSupport.supportiveCare.immediateSteps.map(s => ({
+        title: s.title,
+        desc: s.instruction || s.desc || ''
+      })),
+      thingsToAvoid: [
+        'Do NOT administer unprescribed injectable antibiotics without veterinary prescription',
+        'Do NOT perform invasive incisions or lance unconfirmed swellings',
+        'Do NOT move sick animals to communal ponds or shared grazing pastures'
+      ],
+      emergencySigns: [
+        'Sudden high mortality or severe recumbency in multiple animals',
+        'Uncontrollable bleeding or dark tarry blood discharge',
+        'Severe respiratory gasping with open-mouth breathing'
+      ],
+      recommendedAction: hybridAssessment.decisionSupport.veterinaryReferral.actionSummary
+    };
+  }, [hybridAssessment]);
 
   // Voice / NLP AI Triage Handler
   const handleNlpExtract = () => {
     if (!naturalLanguageInput.trim()) return;
     const result = extractSymptomsFromNaturalLanguage(naturalLanguageInput);
-    if (result.symptoms.length > 0) {
+    if (result && result.symptoms && result.symptoms.length > 0) {
       const newMap: Record<string, SymptomObservation & { onsetTimeframe?: string; bodyLocation?: string }> = { ...selectedSymptoms };
       result.symptoms.forEach(s => {
         newMap[s.symptomId] = {
@@ -438,8 +505,8 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
           historicalCaseNumber: histCase.caseNumber,
           caseDate: histCase.createdAt,
           species: histCase.species,
-          reportedSymptoms: histCase.symptoms.map(s => s.symptomName),
-          suspectedCondition: histCase.suspectedDiseases[0]?.diseaseName,
+          reportedSymptoms: (histCase.symptoms || []).map(s => s.symptomName),
+          suspectedCondition: histCase.suspectedDiseases?.[0]?.diseaseName,
           status: histCase.status,
           relationshipType: historyRelationshipType,
           notes: historyNotes.trim() || undefined
@@ -486,10 +553,13 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
       symptoms: symptomsArray,
       naturalLanguageDescription: naturalLanguageInput || customObservationNotes || undefined,
       symptomsStartDate: new Date().toISOString().split('T')[0],
+      symptomDurationDays: symptomDuration === 'MORE_THAN_WEEK' ? 8 : symptomDuration === '4_TO_7_DAYS' ? 5 : symptomDuration === '1_TO_3_DAYS' ? 2 : 1,
+      previousHealthHistory: previousHistorySelection === 'YES' ? selectedPastDiseases : [],
+      vaccinationStatusAtReport: vaccinationStatus,
       affectedCount,
       deadCount,
       status: 'NEW',
-      priority: riskAssessment.level === 'CRITICAL' ? 'EMERGENCY' : riskAssessment.level === 'HIGH' ? 'URGENT' : 'ROUTINE'
+      priority: hybridAssessment.finalRiskLevel === 'CRITICAL' ? 'EMERGENCY' : hybridAssessment.finalRiskLevel === 'HIGH' ? 'URGENT' : 'ROUTINE'
     });
 
     try {
@@ -512,15 +582,19 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
     { species: 'Camel', label: 'Camel', icon: '🐪' }
   ];
 
+  const { t, currentLang } = useTranslation();
+  const roleTerms = getTerminology(currentUser?.role || 'FARMER', currentLang);
+  const isFarmerRole = currentUser?.role === 'FARMER';
+
   const wizardSteps = [
-    { num: 1, name: 'Animal Profile', short: 'Animal' },
-    { num: 2, name: 'Previous History', short: 'History' },
-    { num: 3, name: 'Disease Symptoms', short: 'Symptoms' },
-    { num: 4, name: 'Morbidity Counts', short: 'Counts' },
-    { num: 5, name: 'Vaccine & Location', short: 'Location' },
-    { num: 6, name: 'Possible Diseases', short: 'Conditions' },
-    { num: 7, name: 'Risk & Guidance', short: 'Guidance' },
-    { num: 8, name: 'Review & Escalate', short: 'Escalate' }
+    { num: 1, name: isFarmerRole ? (roleTerms.myHerd || 'Animal Details') : 'Animal Profile', short: t('animals', 'Animal') },
+    { num: 2, name: isFarmerRole ? 'Previous Illness' : 'Previous History', short: t('historicalTrends', 'History') },
+    { num: 3, name: isFarmerRole ? roleTerms.symptoms : 'Clinical Symptoms', short: t('symptoms', 'Symptoms') },
+    { num: 4, name: isFarmerRole ? roleTerms.underObservation : 'Morbidity Counts', short: t('counts', 'Counts') },
+    { num: 5, name: isFarmerRole ? `${roleTerms.vaccinationHistory} & Location` : 'Vaccine & Spatial Location', short: t('location', 'Location') },
+    { num: 6, name: isFarmerRole ? `${roleTerms.possibleDisease} (${roleTerms.aiCheck})` : 'Differential Screening', short: t('aiCheck', 'Conditions') },
+    { num: 7, name: isFarmerRole ? `${roleTerms.riskLevel} & ${roleTerms.preventiveAction}` : 'Risk & Decision Support', short: t('guidance', 'Guidance') },
+    { num: 8, name: isFarmerRole ? t('submit', 'Send to Doctor') : 'Review & Escalate', short: t('submit', 'Submit') }
   ];
 
   return (
@@ -531,10 +605,10 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
           <div>
             <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 uppercase tracking-wider mb-0.5">
               <Stethoscope className="w-4 h-4" />
-              Comprehensive Clinical Ingestion Wizard
+              {isFarmerRole ? 'Animal Health Report Form' : 'Comprehensive Clinical Ingestion Wizard'}
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Report Livestock Health Issue
+              {isFarmerRole ? 'Report Sick Animal (Get Immediate Care Guidance)' : 'Report Livestock Health Issue'}
             </h1>
           </div>
 
@@ -934,7 +1008,7 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Relevant Previous Health Reports ({relevantHistoricalReports.length} found)
+                Relevant Previous Health Reports ({(relevantHistoricalReports || []).length} found)
               </label>
               {selectedHistoricalCaseId && (
                 <button
@@ -950,12 +1024,12 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
               )}
             </div>
 
-            {relevantHistoricalReports.length > 0 ? (
+            {(relevantHistoricalReports || []).length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {relevantHistoricalReports.slice(0, 4).map(histCase => {
                   const isSelected = selectedHistoricalCaseId === histCase.id;
                   const daysAgo = Math.max(1, Math.round((Date.now() - new Date(histCase.createdAt).getTime()) / (1000 * 60 * 60 * 24)));
-                  const suspectedCond = histCase.suspectedDiseases[0]?.diseaseName || 'Unspecified Condition';
+                  const suspectedCond = histCase.suspectedDiseases?.[0]?.diseaseName || 'Unspecified Condition';
 
                   return (
                     <div
@@ -990,13 +1064,13 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
 
                         {/* Symptoms chips */}
                         <div className="flex flex-wrap gap-1 pt-1">
-                          {histCase.symptoms.slice(0, 3).map((sym, i) => (
+                          {(histCase.symptoms || []).slice(0, 3).map((sym, i) => (
                             <span key={i} className="text-[9px] bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded">
                               {sym.symptomName}
                             </span>
                           ))}
-                          {histCase.symptoms.length > 3 && (
-                            <span className="text-[9px] text-slate-400">+{histCase.symptoms.length - 3} more</span>
+                          {(histCase.symptoms || []).length > 3 && (
+                            <span className="text-[9px] text-slate-400">+{(histCase.symptoms || []).length - 3} more</span>
                           )}
                         </div>
                       </div>
@@ -1024,6 +1098,86 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
                 <p className="text-[11px] text-slate-500 max-w-md mx-auto">
                   No active or historical disease reports found for this holding within the last 90 days. This will be recorded as a fresh, independent health report.
                 </p>
+              </div>
+            )}
+          </div>
+
+          {/* Individual Animal Disease & Medical History */}
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+            <div>
+              <label className="block text-xs font-black text-slate-800 uppercase tracking-wider mb-1">
+                Individual Animal Past Health / Medical History
+              </label>
+              <p className="text-[11px] text-slate-500">
+                Has this specific animal suffered from any major infectious or chronic diseases in the past 12 months?
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {(['NO', 'YES', 'UNKNOWN'] as const).map(option => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    setPreviousHistorySelection(option);
+                    if (option !== 'YES') setSelectedPastDiseases([]);
+                  }}
+                  className={`py-3 px-4 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    previousHistorySelection === option
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {option === 'NO' ? 'No Known History (Healthy)' : option === 'YES' ? 'Yes (Has Past History)' : 'Unknown / Unrecorded'}
+                </button>
+              ))}
+            </div>
+
+            {previousHistorySelection === 'YES' && (
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3 animate-in fade-in">
+                <span className="text-xs font-bold text-slate-700 block">
+                  Select previously diagnosed or treated conditions:
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    'Foot-and-Mouth Disease (FMD)',
+                    'Lumpy Skin Disease (LSD)',
+                    'Peste des Petits Ruminants (PPR)',
+                    'Haemorrhagic Septicaemia (HS)',
+                    'Anthrax',
+                    'Black Quarter (BQ)',
+                    'Brucellosis',
+                    'Clinical / Subclinical Mastitis',
+                    'Tick-Borne Haemoparasites',
+                    'Enterotoxaemia (ET)'
+                  ].map(disease => {
+                    const isChecked = selectedPastDiseases.includes(disease);
+                    return (
+                      <label
+                        key={disease}
+                        className={`p-2.5 rounded-lg border cursor-pointer flex items-center gap-2 transition-all ${
+                          isChecked
+                            ? 'bg-emerald-50 border-emerald-500 font-bold text-emerald-950 ring-1 ring-emerald-500'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setSelectedPastDiseases([...selectedPastDiseases, disease]);
+                            } else {
+                              setSelectedPastDiseases(selectedPastDiseases.filter(d => d !== disease));
+                            }
+                          }}
+                          className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="text-[11px] leading-tight">{disease}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -1090,6 +1244,34 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 {symptomsArray.length} Symptoms Selected
               </span>
+            </div>
+          </div>
+
+          {/* Overall Duration of Symptoms */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+              Overall Duration of Sickness / Onset:
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { id: 'LESS_THAN_DAY', label: '< 24 Hours (Sudden / Hyperacute)' },
+                { id: '1_TO_3_DAYS', label: '1–3 Days (Acute)' },
+                { id: '4_TO_7_DAYS', label: '4–7 Days (Subacute)' },
+                { id: 'MORE_THAN_WEEK', label: '> 7 Days (Chronic / Lingering)' }
+              ].map(dur => (
+                <button
+                  key={dur.id}
+                  type="button"
+                  onClick={() => setSymptomDuration(dur.id as any)}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                    symptomDuration === dur.id
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {dur.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -1596,7 +1778,7 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
 
           {/* Suspected Diseases Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {riskAssessment.suspectedDiseases.slice(0, 3).map((dis, idx) => (
+            {(riskAssessment.suspectedDiseases || []).slice(0, 3).map((dis, idx) => (
               <div
                 key={dis.diseaseId}
                 className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 hover:border-emerald-300 transition-all flex flex-col justify-between shadow-xs"
@@ -1618,7 +1800,7 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
                     </p>
                   )}
 
-                  {dis.keyDifferentiators.length > 0 && (
+                  {dis.keyDifferentiators && dis.keyDifferentiators.length > 0 && (
                     <div className="pt-2 border-t border-slate-200/80">
                       <span className="text-[10px] font-bold text-slate-600 block mb-1">Key Indicator Signs:</span>
                       <div className="flex flex-wrap gap-1">
@@ -1671,143 +1853,16 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
       {/* STEP 7: RISK ASSESSMENT & HEALTH GUIDANCE                                 */}
       {/* ========================================================================= */}
       {step === 7 && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6 animate-in fade-in">
-          {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200">
-            <div>
-              <span className="text-xs font-black text-slate-400 uppercase tracking-widest block">
-                SURVEILLANCE CLINICAL ASSESSMENT
-              </span>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1">
-                Risk Assessment & Health Guidance
-              </h2>
-            </div>
-
-            <div className="text-right">
-              <RiskBadge level={riskAssessment.level} score={riskAssessment.score} size="lg" />
-              <span className="text-xs font-bold text-slate-500 block mt-1">
-                Score: {riskAssessment.score} / 100
-              </span>
-            </div>
-          </div>
-
-          {/* Primary Assessment Callout */}
-          <div className={`p-5 rounded-2xl border ${
-            riskAssessment.level === 'CRITICAL'
-              ? 'bg-rose-50 border-rose-300 text-rose-950'
-              : riskAssessment.level === 'HIGH'
-              ? 'bg-orange-50 border-orange-300 text-orange-950'
-              : riskAssessment.level === 'MODERATE'
-              ? 'bg-amber-50 border-amber-300 text-amber-950'
-              : 'bg-emerald-50 border-emerald-300 text-emerald-950'
-          }`}>
-            <h3 className="text-base sm:text-lg font-black flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 shrink-0" />
-              {riskAssessment.level === 'HIGH' || riskAssessment.level === 'CRITICAL'
-                ? 'High Risk Detected — Urgent Veterinary Escalation Recommended.'
-                : riskAssessment.level === 'MODERATE'
-                ? 'Moderate Risk Detected — Veterinary Consultation Advised.'
-                : 'Low Risk Detected — Routine Biosecurity & Care Monitoring.'}
-            </h3>
-            <p className="text-xs mt-1 opacity-90 leading-relaxed">
-              Based on the {symptomsArray.length} reported symptoms ({symptomsArray.map(s => s.symptomName).join(', ')}), herd morbidity of {calculatedAffectedPct}%, and {nearbyCasesCount} nearby active surveillance cases.
-            </p>
-          </div>
-
-          {/* Contributing Evidence Factors */}
-          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2.5">
-            <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-              WHY THIS RISK? (Contributing Evidence)
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700">
-              {symptomsArray.map((s, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span><strong>{s.symptomName}</strong> ({s.severity} severity)</span>
-                </div>
-              ))}
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{nearbyCasesCount} similar active reports in 10 km zone</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Herd morbidity is {calculatedAffectedPct}% ({affectedCount} of {totalAnimals} affected)</span>
-              </div>
-              {selectedHistoricalCaseId && (
-                <div className="flex items-center gap-2 sm:col-span-2 text-blue-900 font-semibold">
-                  <Link2 className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Linked to ongoing herd historical report ({historyRelationshipType.replace(/_/g, ' ')})</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Supportive Care & Immediate First Aid */}
-          {riskAssessment.supportiveCare && riskAssessment.supportiveCare.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <HeartHandshake className="w-4 h-4 text-emerald-600" />
-                SUPPORTIVE CARE & IMMEDIATE FIRST AID
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {riskAssessment.supportiveCare.map((stepItem, idx) => (
-                  <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
-                    <div className="flex items-center gap-2 font-bold text-xs text-slate-900">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      {stepItem.title}
-                    </div>
-                    <p className="text-[11px] text-slate-600 leading-relaxed pl-6">{stepItem.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Contraindications & Emergency Red Flags */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-rose-50/70 border border-rose-200 p-5 rounded-2xl space-y-2.5">
-              <h3 className="text-xs font-black text-rose-950 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-rose-600" />
-                CRITICAL THINGS TO AVOID (CONTRAINDICATIONS)
-              </h3>
-              <ul className="space-y-1.5 text-[11px] text-rose-950">
-                {(riskAssessment.thingsToAvoid || [
-                  'Do NOT perform home surgery or lance unconfirmed swellings',
-                  'Do NOT feed coarse or dry fibrous roughage if mouth blisters are present',
-                  'Do NOT move sick animals to communal ponds or grazing lands'
-                ]).map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="text-rose-600 font-bold">•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="bg-amber-50/70 border border-amber-200 p-5 rounded-2xl space-y-2.5">
-              <h3 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-                EMERGENCY RED FLAGS — CALL VET IMMEDIATELY
-              </h3>
-              <ul className="space-y-1.5 text-[11px] text-amber-950">
-                {(riskAssessment.emergencySigns || [
-                  'Uncontrollable bloody discharge or dark tarry blood from rectum',
-                  'Extreme hypothermia or rapid continuous decline in body condition',
-                  'Severe respiratory gasping with open-mouth breathing',
-                  'Prolonged sternal or lateral recumbency (inability to stand)'
-                ]).map((sign, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="text-amber-700 font-bold">⚠</span>
-                    <span>{sign}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+        <div className="space-y-6 animate-in fade-in">
+          {/* Hybrid Decision Support Card */}
+          <HybridDecisionSupportCard
+            assessment={hybridAssessment}
+            showActions={false}
+            role={currentUser.role}
+          />
 
           {/* Navigation Buttons */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
             <button
               type="button"
               onClick={() => setStep(6)}
@@ -1900,7 +1955,7 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
               <div className="text-[11px] text-slate-600">
                 Priority: <strong>{riskAssessment.level === 'CRITICAL' ? 'EMERGENCY' : riskAssessment.level === 'HIGH' ? 'URGENT' : 'ROUTINE'}</strong>
                 <span className="block text-slate-500 mt-0.5">
-                  Suspected: {riskAssessment.suspectedDiseases[0]?.diseaseName || 'Differential Pending'}
+                  Suspected: {riskAssessment.suspectedDiseases?.[0]?.diseaseName || 'Differential Pending'}
                 </span>
               </div>
             </div>

@@ -1262,3 +1262,6 @@ export const LOCATION_DATA: LocationHierarchy[] = [
   { stateId: 'st_pun', stateName: 'Punjab', districtId: 'dt_amritsar', districtName: 'Amritsar', blockId: 'bk_ajnala', blockName: 'Ajnala', villageId: 'vl_ramdas', villageName: 'Ramdas Border', latitude: 31.9891, longitude: 74.9123 },
   { stateId: 'st_pun', stateName: 'Punjab', districtId: 'dt_amritsar', districtName: 'Amritsar', blockId: 'bk_majitha', blockName: 'Majitha', villageId: 'vl_sohian', villageName: 'Sohian Kalan', latitude: 31.7812, longitude: 75.0219 }
 ];
+
+export const SYMPTOMS_DATABASE = SYMPTOMS_LIST;
+

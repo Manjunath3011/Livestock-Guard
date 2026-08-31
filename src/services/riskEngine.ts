@@ -73,7 +73,8 @@ export function assessLivestockRisk(params: {
   const dead = params.deadCount || 0;
 
   // 1. Symptom-to-Disease Matching
-  const observedSymptomIds = new Set(params.symptoms.map(s => s.symptomId));
+  const symptoms = params.symptoms || [];
+  const observedSymptomIds = new Set(symptoms.map(s => s.symptomId));
   const severityMultiplier: Record<string, number> = {
     mild: 0.7,
     moderate: 1.0,
@@ -84,23 +85,24 @@ export function assessLivestockRisk(params: {
 
   for (const disease of DISEASES_DATABASE) {
     // Species compatibility check
-    if (!disease.affectedSpecies.includes(params.species) && !disease.affectedSpecies.includes('Other')) {
+    const affectedSpeciesList = disease.affectedSpecies || [];
+    if (!affectedSpeciesList.includes(params.species) && !affectedSpeciesList.includes('Other')) {
       continue;
     }
 
-    const diseaseWeights = DISEASE_SYMPTOM_MATRIX.filter(m => m.diseaseId === disease.id);
-    if (diseaseWeights.length === 0) continue;
+    const diseaseWeights = (DISEASE_SYMPTOM_MATRIX || []).filter(m => m.diseaseId === disease.id);
+    if (!diseaseWeights || diseaseWeights.length === 0) continue;
 
     let matchedWeightSum = 0;
     let totalPossibleWeightSum = 0;
     const matchingSymptomNames: string[] = [];
 
     for (const link of diseaseWeights) {
-      totalPossibleWeightSum += link.importanceWeight * 1.2;
+      totalPossibleWeightSum += (link.importanceWeight || 1) * 1.2;
       if (observedSymptomIds.has(link.symptomId)) {
-        const obs = params.symptoms.find(s => s.symptomId === link.symptomId);
+        const obs = symptoms.find(s => s.symptomId === link.symptomId);
         const mult = obs ? severityMultiplier[obs.severity] || 1.0 : 1.0;
-        matchedWeightSum += link.importanceWeight * mult;
+        matchedWeightSum += (link.importanceWeight || 1) * mult;
         matchingSymptomNames.push(obs?.symptomName || link.symptomId);
       }
     }

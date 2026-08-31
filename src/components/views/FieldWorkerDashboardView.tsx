@@ -66,9 +66,9 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
     refreshData();
   };
 
-  const scheduledVisits = fieldVisits.filter(v => v.status === 'SCHEDULED' || v.status === 'IN_PROGRESS');
-  const completedVisits = fieldVisits.filter(v => v.status === 'COMPLETED');
-  const pendingSamples = labSamples.filter(s => s.status === 'RECEIVED_AT_LAB' || s.status === 'IN_TRANSIT');
+  const scheduledVisits = (fieldVisits || []).filter(v => v.status === 'SCHEDULED' || v.status === 'IN_PROGRESS');
+  const completedVisits = (fieldVisits || []).filter(v => v.status === 'COMPLETED');
+  const pendingSamples = (labSamples || []).filter(s => s.status === 'RECEIVED_AT_LAB' || s.status === 'IN_TRANSIT');
 
   return (
     <div className="space-y-6 pb-12">
@@ -81,7 +81,7 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
               <span>Para-Veterinary & Field Operations Console</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Beat Duty: {currentUser.name}
+              Beat Duty: {currentUser?.name || 'Field Worker'}
             </h1>
             <p className="text-cyan-100 text-sm mt-1 flex items-center gap-2">
               <MapPin className="w-4 h-4 text-cyan-300" />
@@ -117,13 +117,13 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
           <div>
             <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <span>{isOffline ? 'Offline Mode Active (Field Simulated)' : 'Connected to Central Disease Registry'}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${offlineQueue.length > 0 ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
-                {offlineQueue.length} Pending Sync
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${(offlineQueue || []).length > 0 ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                {(offlineQueue || []).length} Pending Sync
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              {offlineQueue.length > 0
-                ? `${offlineQueue.length} case records or samples captured offline awaiting upload.`
+              {(offlineQueue || []).length > 0
+                ? `${(offlineQueue || []).length} case records or samples captured offline awaiting upload.`
                 : 'All local field data is synchronized with the district central registry.'}
             </p>
           </div>
@@ -136,7 +136,7 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
           >
             {isOffline ? 'Go Online' : 'Simulate Offline'}
           </button>
-          {offlineQueue.length > 0 && (
+          {(offlineQueue || []).length > 0 && (
             <button
               onClick={handleSync}
               className="text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm"
@@ -160,8 +160,8 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Scheduled Visits Today</span>
-            <div className="text-2xl font-black text-cyan-600 dark:text-cyan-400 mt-1">{scheduledVisits.length}</div>
-            <div className="text-xs text-emerald-600 font-medium mt-1">{completedVisits.length} completed</div>
+            <div className="text-2xl font-black text-cyan-600 dark:text-cyan-400 mt-1">{(scheduledVisits || []).length}</div>
+            <div className="text-xs text-emerald-600 font-medium mt-1">{(completedVisits || []).length} completed</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-cyan-100 dark:bg-cyan-950 text-cyan-600 flex items-center justify-center">
             <Calendar className="w-6 h-6" />
@@ -171,9 +171,9 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Beat Active Cases</span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{cases.length}</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{(cases || []).length}</div>
             <div className="text-xs text-rose-600 font-medium mt-1">
-              {cases.filter(c => c.riskLevel === 'CRITICAL' || c.riskLevel === 'HIGH').length} High/Critical
+              {(cases || []).filter(c => c.riskLevel === 'CRITICAL' || c.riskLevel === 'HIGH').length} High/Critical
             </div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center">
@@ -184,8 +184,8 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Samples Collected</span>
-            <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{labSamples.length}</div>
-            <div className="text-xs text-blue-600 font-medium mt-1">{pendingSamples.length} in transit/testing</div>
+            <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{(labSamples || []).length}</div>
+            <div className="text-xs text-blue-600 font-medium mt-1">{(pendingSamples || []).length} in transit/testing</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 flex items-center justify-center">
             <TestTube className="w-6 h-6" />

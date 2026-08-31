@@ -29,8 +29,8 @@ interface RiskMapProps {
 }
 
 export const RiskMap: React.FC<RiskMapProps> = ({
-  cases,
-  outbreaks,
+  cases = [],
+  outbreaks = [],
   mortalities = [],
   selectedCaseId,
   onSelectCase,
@@ -86,7 +86,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
 
   // Filtered cases
   const filteredCases = useMemo(() => {
-    return cases.filter(c => {
+    return (cases || []).filter(c => {
       if (speciesFilter !== 'ALL' && c.species !== speciesFilter) return false;
       if (riskFilter !== 'ALL' && c.riskLevel !== riskFilter) return false;
       return true;
@@ -171,7 +171,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
               onChange={e => setShowOutbreaks(e.target.checked)}
               className="rounded text-rose-500 focus:ring-0"
             />
-            <span>Outbreaks ({outbreaks.length})</span>
+            <span>Outbreaks ({(outbreaks || []).length})</span>
           </label>
 
           <label className="flex items-center gap-1.5 text-slate-300 hover:text-white cursor-pointer px-1.5 py-0.5 rounded hover:bg-slate-800">
@@ -399,7 +399,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
 
                     {/* Tooltip Hover Badge */}
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900/95 text-slate-200 px-2 py-1 rounded border border-slate-700 text-[10px] font-medium whitespace-nowrap shadow-xl z-30 pointer-events-none">
-                      <p className="font-bold text-white">{c.suspectedDiseases[0]?.diseaseName || 'Case'}</p>
+                      <p className="font-bold text-white">{c.suspectedDiseases?.[0]?.diseaseName || 'Case'}</p>
                       <p className="text-slate-400">{c.villageName} • {c.species}</p>
                     </div>
                   </div>
@@ -465,7 +465,7 @@ export const RiskMap: React.FC<RiskMapProps> = ({
               </span>
               <h4 className="text-sm font-bold text-slate-100">
                 {activeItem.type === 'CASE'
-                  ? activeItem.data.suspectedDiseases[0]?.diseaseName || 'Suspected Case'
+                  ? activeItem.data.suspectedDiseases?.[0]?.diseaseName || 'Suspected Case'
                   : activeItem.data.name}
               </h4>
             </div>

@@ -331,7 +331,7 @@ export const QuickScenarioLauncher: React.FC<QuickScenarioLauncherProps> = ({ on
             </div>
             <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
               {store.isOffline()
-                ? `Sync ${store.getOfflineQueue().length} pending records to Central DB.`
+                ? `Sync ${(store.getOfflineQueue() || []).length} pending records to Central DB.`
                 : 'Simulate low connectivity field queue & auto-reconnect.'}
             </p>
           </div>

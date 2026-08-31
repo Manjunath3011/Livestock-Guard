@@ -67,7 +67,7 @@ export const HerdsView: React.FC<HerdsViewProps> = ({ herds, farms, currentUser 
             Herd & Flock Unit Management
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Herds ({herds.length} Managed Units)
+            Herds ({(herds || []).length} Managed Units)
           </h2>
           <p className="text-xs text-slate-500 mt-1">
             Monitor herd-level epidemiological risk scores, vaccination coverage and collective health metrics.

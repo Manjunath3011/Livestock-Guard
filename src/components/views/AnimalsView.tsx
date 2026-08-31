@@ -7,6 +7,7 @@ import { CaseStatusBadge } from '../common/CaseStatusBadge';
 import { IndiaLocationPicker } from '../common/IndiaLocationPicker';
 import { NormalizedLocationSelection } from '../../types/location';
 import { indiaLocationService } from '../../services/IndiaLocationService';
+import { useTranslation } from '../../i18n/translations';
 import {
   PawPrint,
   PlusCircle,
@@ -44,6 +45,7 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
   currentUser,
   onSelectAnimal
 }) => {
+  const { t, currentLang } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [speciesFilter, setSpeciesFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -59,28 +61,28 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
   const [newSex, setNewSex] = useState<'MALE' | 'FEMALE'>('FEMALE');
   const [newAge, setNewAge] = useState<number>(3.5);
   const [newWeight, setNewWeight] = useState<number>(380);
-  const [newFarmId, setNewFarmId] = useState<string>(farms[0]?.id || 'farm_01');
+  const [newFarmId, setNewFarmId] = useState<string>(farms?.[0]?.id || 'farm_01');
   const [isCustomLocationOpen, setIsCustomLocationOpen] = useState(false);
   const [customLocation, setCustomLocation] = useState<NormalizedLocationSelection | null>(null);
 
   // Context store queries for selected animal
-  const cases = store.getCases();
-  const vaccinations = store.getVaccinations();
-  const treatments = store.getTreatments();
-  const labSamples = store.getLabSamples();
+  const cases = store.getCases() || [];
+  const vaccinations = store.getVaccinations() || [];
+  const treatments = store.getTreatments() || [];
+  const labSamples = store.getLabSamples() || [];
 
   // Filtered Animals
   const filteredAnimals = useMemo(() => {
-    return animals.filter(a => {
+    return (animals || []).filter(a => {
       if (speciesFilter !== 'ALL' && a.species !== speciesFilter) return false;
       if (statusFilter !== 'ALL' && a.currentHealthStatus !== statusFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
-          a.tagNumber.toLowerCase().includes(q) ||
+          a.tagNumber?.toLowerCase().includes(q) ||
           (a.name && a.name.toLowerCase().includes(q)) ||
-          a.ownerName.toLowerCase().includes(q) ||
-          a.breed.toLowerCase().includes(q)
+          a.ownerName?.toLowerCase().includes(q) ||
+          a.breed?.toLowerCase().includes(q)
         );
       }
       return true;
@@ -94,7 +96,7 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
       return;
     }
 
-    const farmObj = farms.find(f => f.id === newFarmId);
+    const farmObj = (farms || []).find(f => f.id === newFarmId);
     const loc = customLocation || (farmObj ? {
       stateId: farmObj.stateId,
       districtId: farmObj.districtId,
@@ -115,8 +117,8 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
       currentHealthStatus: 'HEALTHY',
       farmId: newFarmId,
       farmName: farmObj?.name || 'Local Farm Unit',
-      ownerId: currentUser.id,
-      ownerName: currentUser.name,
+      ownerId: currentUser?.id || 'usr_farmer_01',
+      ownerName: currentUser?.name || 'Farmer',
       stateId: loc?.stateId || farmObj?.stateId || 'st_in_mh',
       districtId: loc?.districtId || farmObj?.districtId || 'dt_in_mh_pune',
       blockId: loc?.subDistrictId || farmObj?.blockId || 'sd_in_mh_pune_baramati',
@@ -177,13 +179,13 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1">
             <PawPrint className="w-4 h-4" />
-            Livestock Registry & Identification
+            {t('animals', 'Livestock Registry & Identification')}
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Animals ({animals.length} Registered)
+            {currentUser.role === 'FARMER' ? t('myHerd', 'My Animals') : t('animals', 'Animals')} ({(animals || []).length})
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Track individual animal profiles, digital ear tags, health history and immunization logs.
+            {t('routinePrevention', 'Track individual animal profiles, digital ear tags, health history and immunization logs.')}
           </p>
         </div>
 
@@ -192,7 +194,7 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
           className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-emerald-700/20 cursor-pointer"
         >
           <PlusCircle className="w-4 h-4" />
-          Register New Animal
+          {t('registerAnimal', 'Register New Animal')}
         </button>
       </div>
 
@@ -204,7 +206,7 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search by Ear Tag, Breed, Owner, or Name..."
+            placeholder={t('searchPlaceholder', 'Search by Ear Tag, Breed, Owner, or Name...')}
             className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-hidden focus:border-emerald-500"
           />
         </div>
@@ -216,13 +218,13 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
             onChange={e => setSpeciesFilter(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:bg-white"
           >
-            <option value="ALL">All Species</option>
-            <option value="Cattle">Cattle</option>
-            <option value="Buffalo">Buffalo</option>
-            <option value="Goat">Goat</option>
-            <option value="Sheep">Sheep</option>
-            <option value="Pig">Pig</option>
-            <option value="Poultry">Poultry</option>
+            <option value="ALL">{t('allSpecies', 'All Species')}</option>
+            <option value="Cattle">{t('cattle', 'Cattle')}</option>
+            <option value="Buffalo">{t('buffalo', 'Buffalo')}</option>
+            <option value="Goat">{t('goat', 'Goat')}</option>
+            <option value="Sheep">{t('sheep', 'Sheep')}</option>
+            <option value="Pig">{t('pig', 'Pig')}</option>
+            <option value="Poultry">{t('poultry', 'Poultry')}</option>
           </select>
 
           {/* Status filter */}
@@ -231,12 +233,12 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
             onChange={e => setStatusFilter(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:bg-white"
           >
-            <option value="ALL">All Health Statuses</option>
-            <option value="HEALTHY">Healthy</option>
-            <option value="UNDER_OBSERVATION">Under Observation</option>
-            <option value="AFFECTED">Affected (Sick)</option>
-            <option value="RECOVERED">Recovered</option>
-            <option value="DECEASED">Deceased</option>
+            <option value="ALL">{t('allStatus', 'All Health Statuses')}</option>
+            <option value="HEALTHY">{t('healthy', 'Healthy')}</option>
+            <option value="UNDER_OBSERVATION">{t('underObservation', 'Under Observation')}</option>
+            <option value="AFFECTED">{t('affected', 'Affected (Sick)')}</option>
+            <option value="RECOVERED">{t('recovered', 'Recovered')}</option>
+            <option value="DECEASED">{t('deceased', 'Deceased')}</option>
           </select>
         </div>
       </div>
@@ -247,17 +249,17 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3.5">Ear Tag ID</th>
-                <th className="px-4 py-3.5">Species & Breed</th>
-                <th className="px-4 py-3.5">Sex & Age</th>
-                <th className="px-4 py-3.5">Owner & Holding</th>
-                <th className="px-4 py-3.5">Health Status</th>
-                <th className="px-4 py-3.5">Vaccines</th>
-                <th className="px-4 py-3.5 text-right">Actions</th>
+                <th className="px-4 py-3.5">{t('earTagId', 'Ear Tag ID')}</th>
+                <th className="px-4 py-3.5">{t('species', 'Species & Breed')}</th>
+                <th className="px-4 py-3.5">{t('sexAge', 'Sex & Age')}</th>
+                <th className="px-4 py-3.5">{t('ownerFarm', 'Owner & Holding')}</th>
+                <th className="px-4 py-3.5">{t('healthStatus', 'Health Status')}</th>
+                <th className="px-4 py-3.5">{t('vaccinationStatus', 'Vaccines')}</th>
+                <th className="px-4 py-3.5 text-right">{t('actions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredAnimals.length === 0 ? (
+              {(filteredAnimals || []).length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-slate-400">
                     No animals found matching current filters.
@@ -608,7 +610,7 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
                         <CaseStatusBadge status={c.status} size="sm" />
                       </div>
                       <p className="text-slate-700">
-                        Suspected: <strong>{c.suspectedDiseases[0]?.diseaseName || 'General Triage'}</strong>
+                        Suspected: <strong>{c.suspectedDiseases?.[0]?.diseaseName || 'General Triage'}</strong>
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {(c.symptoms || []).map(s => (

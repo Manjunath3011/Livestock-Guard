@@ -25,7 +25,8 @@ import {
   Zap,
   Users,
   ShieldCheck,
-  Activity
+  Activity,
+  Cpu
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -66,14 +67,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'vet_dashboard',
-      label: 'Clinical Triage & Cases',
+      label: t.veterinaryDashboard || 'Clinical Triage & Cases',
       icon: Stethoscope,
       roles: ['VETERINARIAN', 'DISTRICT_OFFICIAL', 'SYSTEM_ADMIN'],
       badge: 'Priority'
     },
     {
       id: 'animals',
-      label: canonicalRole === 'FARMER' ? 'My Animals' : t.animals || 'Registered Animals',
+      label: canonicalRole === 'FARMER' ? t.myHerd : t.animals || 'Registered Animals',
       icon: PawPrint,
       roles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'SYSTEM_ADMIN']
     },
@@ -152,8 +153,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'Sandbox'
     },
     {
+      id: 'ml_management',
+      label: 'ML Data & Models',
+      icon: Cpu,
+      roles: ['SYSTEM_ADMIN', 'STATE_ADMIN', 'VETERINARIAN', 'DISTRICT_OFFICIAL'],
+      badge: 'V2'
+    },
+    {
       id: 'settings',
-      label: 'Surveillance Settings',
+      label: t.settings || 'Settings & Config',
       icon: Settings,
       roles: ['SYSTEM_ADMIN', 'STATE_ADMIN']
     }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outbreak } from '../../types';
 import { RiskBadge } from '../common/RiskBadge';
+import { useTranslation } from '../../i18n/translations';
 import { Radio, ShieldAlert, CheckCircle2, MapPin, Syringe, Truck, AlertTriangle } from 'lucide-react';
 
 interface OutbreaksViewProps {
@@ -9,19 +10,21 @@ interface OutbreaksViewProps {
 }
 
 export const OutbreaksView: React.FC<OutbreaksViewProps> = ({ outbreaks, onNavigateToMap }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-rose-700 uppercase tracking-wider mb-1">
             <Radio className="w-4 h-4 text-rose-600 animate-pulse" />
-            Epidemiological Containment & Buffer Zones
+            {t('outbreaks', 'Epidemiological Containment & Buffer Zones')}
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Active Outbreak Surveillance ({outbreaks.length} Declared Zones)
+            {t('outbreaks', 'Active Outbreak Surveillance')} ({(outbreaks || []).length} {t('alerts', 'Zones')})
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Official government containment circles, emergency ring-vaccination campaigns and animal transit blockades.
+            {t('containmentProtocols', 'Official government containment circles, emergency ring-vaccination campaigns and animal transit blockades.')}
           </p>
         </div>
 
@@ -31,7 +34,7 @@ export const OutbreaksView: React.FC<OutbreaksViewProps> = ({ outbreaks, onNavig
             className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer"
           >
             <MapPin className="w-4 h-4 text-emerald-400" />
-            View on GIS Map
+            {t('riskMap', 'View on GIS Map')}
           </button>
         )}
       </div>
@@ -51,7 +54,7 @@ export const OutbreaksView: React.FC<OutbreaksViewProps> = ({ outbreaks, onNavig
                     {outb.outbreakCode}
                   </span>
                   <h3 className="text-base font-extrabold text-slate-900 mt-1">
-                    {outb.diseaseName} Epidemic Zone
+                    {outb.diseaseName}
                   </h3>
                   <p className="text-xs text-slate-500">
                     {outb.villageName}, {outb.districtName}, {outb.stateName}
@@ -59,23 +62,23 @@ export const OutbreaksView: React.FC<OutbreaksViewProps> = ({ outbreaks, onNavig
                 </div>
 
                 <span className="bg-rose-600 text-white font-extrabold px-3 py-1 rounded-full text-xs animate-pulse">
-                  {outb.status}
+                  {outb.status === 'ACTIVE' ? t('critical', 'ACTIVE') : outb.status}
                 </span>
               </div>
 
               {/* Grid Metrics */}
               <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-center text-xs">
                 <div>
-                  <span className="text-slate-400 text-[10px]">Zone Radius</span>
-                  <p className="font-bold text-slate-900 text-sm">{outb.radiusKm} km Circle</p>
+                  <span className="text-slate-400 text-[10px]">{t('location', 'Zone Radius')}</span>
+                  <p className="font-bold text-slate-900 text-sm">{outb.radiusKm} km</p>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px]">Morbidity</span>
-                  <p className="font-bold text-rose-700 text-sm">{outb.totalAffected} Animals</p>
+                  <span className="text-slate-400 text-[10px]">{t('affected', 'Morbidity')}</span>
+                  <p className="font-bold text-rose-700 text-sm">{outb.totalAffected} {t('animals', 'Animals')}</p>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px]">Mortalities</span>
-                  <p className="font-bold text-slate-900 text-sm">{outb.totalDeaths} Deaths</p>
+                  <span className="text-slate-400 text-[10px]">{t('deceased', 'Mortalities')}</span>
+                  <p className="font-bold text-slate-900 text-sm">{outb.totalDeaths} {t('deceased', 'Deaths')}</p>
                 </div>
               </div>
 
@@ -84,10 +87,10 @@ export const OutbreaksView: React.FC<OutbreaksViewProps> = ({ outbreaks, onNavig
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="flex items-center gap-1.5 text-slate-700">
                     <Syringe className="w-3.5 h-3.5 text-emerald-600" />
-                    Emergency Ring Vaccination Progress:
+                    {t('vaccinations', 'Ring Vaccination Progress')}:
                   </span>
                   <span className="text-emerald-700 font-bold">
-                    {outb.ringVaccinationDoses} Doses ({ringCoverage}%)
+                    {outb.ringVaccinationDoses} {t('dosesAdministered', 'Doses')} ({ringCoverage}%)
                   </span>
                 </div>
                 <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
@@ -99,7 +102,7 @@ export const OutbreaksView: React.FC<OutbreaksViewProps> = ({ outbreaks, onNavig
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                   <Truck className="w-3.5 h-3.5 text-slate-400" />
-                  Active Containment Enforcements:
+                  {t('containmentProtocols', 'Containment Protocols')}:
                 </h4>
                 <div className="space-y-1.5">
                   {(outb.containmentMeasures || []).map((measure, idx) => (

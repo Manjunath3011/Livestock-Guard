@@ -15,14 +15,14 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({ treatments = [] 
           Veterinary Therapeutics & Drug Stewardship
         </div>
         <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-          Treatment & Prescription Records ({treatments.length} Prescriptions)
+          Treatment & Prescription Records ({(treatments || []).length} Prescriptions)
         </h2>
         <p className="text-xs text-slate-500 mt-1">
           Track antibiotic administration, supportive care regimens, and recovery follow-ups.
         </p>
       </div>
 
-      {treatments.length === 0 ? (
+      {(treatments || []).length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center text-slate-400 text-xs border border-slate-200">
           <Stethoscope className="w-8 h-8 mx-auto mb-2 opacity-30 text-emerald-600" />
           No treatment records found. Prescribe treatments from the Veterinary Clinical Triage board.

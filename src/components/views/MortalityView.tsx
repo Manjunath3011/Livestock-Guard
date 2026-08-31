@@ -32,10 +32,10 @@ export const MortalityView: React.FC<MortalityViewProps> = ({
 
     store.createMortalityReport({
       species,
-      farmId: farms[0]?.id || 'farm_01',
-      farmName: farms[0]?.name || 'Local Village Unit',
-      ownerName: currentUser.name,
-      ownerPhone: currentUser.phone || '+91 98220 11223',
+      farmId: farms?.[0]?.id || 'farm_01',
+      farmName: farms?.[0]?.name || 'Local Village Unit',
+      ownerName: currentUser?.name || 'Farmer',
+      ownerPhone: currentUser?.phone || '+91 98220 11223',
       stateName: 'Maharashtra',
       districtName: 'Pune',
       villageName: 'Malegaon Budruk',
@@ -46,8 +46,8 @@ export const MortalityView: React.FC<MortalityViewProps> = ({
       affectedCount,
       suspectedCause,
       symptomsBeforeDeath: [symptomNotes],
-      reportedBy: currentUser.name,
-      reportedByRole: currentUser.role,
+      reportedBy: currentUser?.name || 'Reporter',
+      reportedByRole: currentUser?.role || 'FARMER',
       necropsyConducted: !necropsyForbidden,
       necropsyFindings: necropsyForbidden
         ? 'STRICT NO-NECROPSY: Suspicion of spore-forming Anthrax. Opened carcass forbidden.'
@@ -71,7 +71,7 @@ export const MortalityView: React.FC<MortalityViewProps> = ({
             Mortality Signal Surveillance & Carcass Bio-Safety
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Mortality Reports ({mortalities.length} Incident Logs)
+            Mortality Reports ({(mortalities || []).length} Incident Logs)
           </h2>
           <p className="text-xs text-slate-500 mt-1">
             Immediate notification of sudden deaths, Anthrax hemorrhagic signals and deep burial biosafety compliance.
@@ -88,7 +88,7 @@ export const MortalityView: React.FC<MortalityViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {mortalities.map(m => (
+        {(mortalities || []).map(m => (
           <div
             key={m.id}
             className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-4 hover:border-rose-300 transition-all"

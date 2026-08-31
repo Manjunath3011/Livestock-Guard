@@ -20,12 +20,14 @@ import {
   Key,
   ShieldCheck,
   Award,
-  Sparkles
+  Sparkles,
+  BrainCircuit
 } from 'lucide-react';
 import { store } from '../../services/store';
 import { User, SystemConfig, Role } from '../../types';
 import { USER_ROLES } from '../../auth/roles';
 import { RegistrationApprovalQueue } from '../auth/RegistrationApprovalQueue';
+import { MLModelStatusCard } from '../common/MLModelStatusCard';
 import confetti from 'canvas-confetti';
 
 interface SystemAdminDashboardViewProps {
@@ -36,7 +38,7 @@ export const SystemAdminDashboardView: React.FC<SystemAdminDashboardViewProps> =
   const [currentUser, setCurrentUser] = useState<User>(store.getCurrentUser());
   const [users, setUsers] = useState<User[]>(store.getAllUsers());
   const [config, setConfig] = useState<SystemConfig>(store.getSystemConfig());
-  const [activeTab, setActiveTab] = useState<'overview' | 'verifications' | 'users' | 'rules' | 'audit' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'verifications' | 'users' | 'rules' | 'ml_model' | 'audit' | 'system'>('overview');
   const [savedSuccess, setSavedSuccess] = useState<string | null>(null);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
 
@@ -78,11 +80,11 @@ export const SystemAdminDashboardView: React.FC<SystemAdminDashboardViewProps> =
     setTimeout(() => setSavedSuccess(null), 3000);
   };
 
-  const totalFarms = store.getFarms().length;
-  const totalAnimals = store.getAnimals().length;
-  const totalCases = store.getCases().length;
-  const activeOutbreaks = store.getOutbreaks().filter(o => o.status === 'ACTIVE').length;
-  const offlineQueue = store.getOfflineQueue().length;
+  const totalFarms = (store.getFarms() || []).length;
+  const totalAnimals = (store.getAnimals() || []).length;
+  const totalCases = (store.getCases() || []).length;
+  const activeOutbreaks = (store.getOutbreaks() || []).filter(o => o.status === 'ACTIVE').length;
+  const offlineQueue = (store.getOfflineQueue() || []).length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -129,6 +131,7 @@ export const SystemAdminDashboardView: React.FC<SystemAdminDashboardViewProps> =
             { id: 'verifications', label: 'Identity & Registration Queue', icon: ShieldCheck },
             { id: 'users', label: 'Users & Roles (RBAC)', icon: Users },
             { id: 'rules', label: 'Risk Engine Parameters', icon: Sliders },
+            { id: 'ml_model', label: 'ML Pipeline & Models', icon: BrainCircuit },
             { id: 'audit', label: 'Security & Audit Logs', icon: Shield },
             { id: 'system', label: 'Storage & Diagnostics', icon: Database }
           ].map(tab => {
@@ -424,6 +427,13 @@ export const SystemAdminDashboardView: React.FC<SystemAdminDashboardViewProps> =
             </div>
           </div>
         </form>
+      )}
+
+      {/* TAB: ML PIPELINE & MODELS */}
+      {activeTab === 'ml_model' && (
+        <div className="space-y-6">
+          <MLModelStatusCard />
+        </div>
       )}
 
       {/* TAB 4: AUDIT LOGS */}

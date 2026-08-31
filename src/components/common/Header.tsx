@@ -28,7 +28,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   currentUser,
-  alerts,
+  alerts = [],
   onOpenNotifications,
   onOpenIvr,
   onToggleSidebar,
@@ -41,8 +41,8 @@ export const Header: React.FC<HeaderProps> = ({
   const currentLang = store.getLanguage();
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const isOffline = store.isOffline();
-  const offlineQueue = store.getOfflineQueue();
-  const unreadAlerts = alerts.filter(a => !a.isRead).length;
+  const offlineQueue = store.getOfflineQueue() || [];
+  const unreadAlerts = (alerts || []).filter(a => !a.isRead).length;
 
   const handleRoleSelect = (r: Role) => {
     store.switchRole(r);
@@ -130,18 +130,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {isOffline ? <WifiOff className="w-3.5 h-3.5" /> : <Wifi className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">
-              {isOffline ? `Offline (${offlineQueue.length})` : 'Online'}
+              {isOffline ? `Offline (${(offlineQueue || []).length})` : 'Online'}
             </span>
           </button>
 
           {/* Sync Now Button if pending items */}
-          {offlineQueue.length > 0 && (
+          {(offlineQueue || []).length > 0 && (
             <button
               onClick={() => store.syncPendingOfflineRecords()}
               className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-xs cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Sync {offlineQueue.length}</span>
+              <span>Sync {(offlineQueue || []).length}</span>
             </button>
           )}
 
@@ -163,7 +163,8 @@ export const Header: React.FC<HeaderProps> = ({
                   { code: 'en', label: 'English' },
                   { code: 'hi', label: 'हिंदी (Hindi)' },
                   { code: 'kn', label: 'ಕನ್ನಡ (Kannada)' },
-                  { code: 'te', label: 'తెలుగు (Telugu)' }
+                  { code: 'te', label: 'తెలుగు (Telugu)' },
+                  { code: 'mr', label: 'मराठी (Marathi)' }
                 ].map(l => (
                   <button
                     key={l.code}

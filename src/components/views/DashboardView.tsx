@@ -165,7 +165,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             { id: 'report_case', title: 'Report Issue', icon: Stethoscope, color: 'text-blue-600 bg-blue-50 border-blue-200' },
             { id: 'vaccinations', title: 'Vaccinations', icon: Syringe, color: 'text-purple-600 bg-purple-50 border-purple-200' },
             { id: 'treatments', title: 'Health Records', icon: FileSpreadsheet, color: 'text-amber-600 bg-amber-50 border-amber-200' },
-            { id: 'alerts', title: 'Alerts', icon: AlertTriangle, color: 'text-rose-600 bg-rose-50 border-rose-200', count: alerts.filter(a => !a.isRead).length },
+            { id: 'alerts', title: 'Alerts', icon: AlertTriangle, color: 'text-rose-600 bg-rose-50 border-rose-200', count: (alerts || []).filter(a => !a.isRead).length },
             { id: 'risk_map', title: 'Risk Map', icon: MapPin, color: 'text-teal-600 bg-teal-50 border-teal-200' },
             { id: 'vet_dashboard', title: 'Vet Support', icon: Activity, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' }
           ].map(action => {
@@ -200,7 +200,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             Livestock Health Overview
           </h2>
           <span className="text-xs text-slate-400">
-            {weather.districtName}, {weather.stateName}
+            {weather?.districtName || 'Pune'}, {weather?.stateName || 'Maharashtra'}
           </span>
         </div>
 
@@ -208,7 +208,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Total Animals */}
           <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-slate-500 uppercase">Total Animals</span>
-            <div className="text-2xl font-black text-slate-900">{animals.length}</div>
+            <div className="text-2xl font-black text-slate-900">{(animals || []).length}</div>
             <p className="text-[11px] text-slate-400 font-medium">In your herd holdings</p>
           </div>
 
@@ -216,7 +216,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-emerald-700 uppercase">Healthy</span>
             <div className="text-2xl font-black text-emerald-700">{healthyAnimals}</div>
-            <p className="text-[11px] text-emerald-600 font-medium">{Math.round((healthyAnimals / Math.max(animals.length, 1)) * 100)}% of stock</p>
+            <p className="text-[11px] text-emerald-600 font-medium">{Math.round((healthyAnimals / Math.max((animals || []).length, 1)) * 100)}% of stock</p>
           </div>
 
           {/* Affected */}
@@ -307,7 +307,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => onNavigate('vet_dashboard')}
               className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
             >
-              View All ({cases.length})
+              View All ({(cases || []).length})
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -325,7 +325,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span className="text-xs font-bold text-slate-800">{c.species}</span>
                   </div>
                   <p className="text-xs text-slate-600">
-                    Suspected: <span className="font-semibold text-emerald-800">{c.suspectedDiseases[0]?.diseaseName || 'Under Review'}</span>
+                    Suspected: <span className="font-semibold text-emerald-800">{c.suspectedDiseases?.[0]?.diseaseName || 'Under Review'}</span>
                   </p>
                   <p className="text-[11px] text-slate-400">
                     {c.villageName}, {c.districtName} • {new Date(c.createdAt).toLocaleDateString()}

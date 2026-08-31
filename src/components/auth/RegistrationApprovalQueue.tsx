@@ -69,13 +69,15 @@ export const RegistrationApprovalQueue: React.FC<RegistrationApprovalQueueProps>
   }, []);
 
   // Filter requests
-  const filteredRequests = requests.filter(req => {
+  const filteredRequests = (requests || []).filter(req => {
+    const q = (searchQuery || '').toLowerCase();
     const matchesSearch =
-      req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.phone.includes(searchQuery) ||
-      (req.email && req.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      req.districtName.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      (req.id && req.id.toLowerCase().includes(q)) ||
+      (req.fullName && req.fullName.toLowerCase().includes(q)) ||
+      (req.phone && req.phone.includes(searchQuery)) ||
+      (req.email && req.email.toLowerCase().includes(q)) ||
+      (req.districtName && req.districtName.toLowerCase().includes(q));
 
     const matchesRole = roleFilter === 'ALL' || req.requestedRole === roleFilter;
     const matchesStatus = statusFilter === 'ALL' || req.status === statusFilter;
@@ -194,7 +196,7 @@ export const RegistrationApprovalQueue: React.FC<RegistrationApprovalQueueProps>
     }
   };
 
-  const pendingCount = requests.filter(r => r.status === 'PENDING_VERIFICATION' || r.status === 'UNDER_REVIEW').length;
+  const pendingCount = (requests || []).filter(r => r.status === 'PENDING_VERIFICATION' || r.status === 'UNDER_REVIEW').length;
 
   return (
     <div className="space-y-6">
@@ -232,7 +234,7 @@ export const RegistrationApprovalQueue: React.FC<RegistrationApprovalQueueProps>
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            Registrations ({requests.length})
+            Registrations ({(requests || []).length})
           </button>
           <button
             onClick={() => setActiveTab('audit')}
@@ -243,7 +245,7 @@ export const RegistrationApprovalQueue: React.FC<RegistrationApprovalQueueProps>
             }`}
           >
             <History className="w-3.5 h-3.5" />
-            <span>Audit Log ({auditLogs.length})</span>
+            <span>Audit Log ({(auditLogs || []).length})</span>
           </button>
         </div>
       </div>
@@ -453,12 +455,12 @@ export const RegistrationApprovalQueue: React.FC<RegistrationApprovalQueueProps>
               <span>Immutable Regulatory Registration Audit Logs</span>
             </h3>
             <span className="text-[11px] text-slate-400 font-mono">
-              {auditLogs.length} audit entries recorded
+              {(auditLogs || []).length} audit entries recorded
             </span>
           </div>
 
           <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-            {auditLogs.length > 0 ? (
+            {(auditLogs || []).length > 0 ? (
               auditLogs.map(log => (
                 <div key={log.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors flex items-start justify-between gap-4">
                   <div className="space-y-1">

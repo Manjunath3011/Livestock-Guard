@@ -13,12 +13,13 @@ interface NotificationDrawerProps {
 export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
   isOpen,
   onClose,
-  alerts,
+  alerts = [],
   onSelectAlert
 }) => {
   if (!isOpen) return null;
 
-  const unreadCount = alerts.filter(a => !a.isRead).length;
+  const alertList = alerts || [];
+  const unreadCount = alertList.filter(a => !a.isRead).length;
 
   const getAlertIcon = (category: Alert['category']) => {
     switch (category) {
@@ -83,13 +84,13 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
 
         {/* Alerts List */}
         <div className="p-4 overflow-y-auto grow space-y-3">
-          {alerts.length === 0 ? (
+          {alertList.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-xs">
               <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
               No alerts in system.
             </div>
           ) : (
-            alerts.map(alert => (
+            alertList.map(alert => (
               <div
                 key={alert.id}
                 onClick={() => {

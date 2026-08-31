@@ -59,7 +59,7 @@ export const LaboratoryView: React.FC<LaboratoryViewProps> = ({ samples, current
             Veterinary Disease Investigation Laboratory (DIAL)
           </div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            Diagnostic Sample Testing Queue ({samples.length} Samples)
+            Diagnostic Sample Testing Queue ({(samples || []).length} Samples)
           </h2>
           <p className="text-xs text-slate-500 mt-1">
             Accession molecular swabs, perform RT-PCR & ELISA assays, and submit confirmed diagnostic results.

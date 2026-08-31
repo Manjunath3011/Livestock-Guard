@@ -16,10 +16,12 @@ import {
   BarChart3,
   TestTube,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  BrainCircuit
 } from 'lucide-react';
 import { store } from '../../services/store';
 import { Case, Outbreak, Alert, Advisory, WeatherData } from '../../types';
+import { MLModelStatusCard } from '../common/MLModelStatusCard';
 
 interface StateAdminDashboardViewProps {
   onNavigate: (module: string) => void;
@@ -57,7 +59,7 @@ export const StateAdminDashboardView: React.FC<StateAdminDashboardViewProps> = (
       level: 'STATE',
       jurisdiction: 'State of Maharashtra (All 36 Districts)',
       diseaseTarget: advisoryDisease,
-      issuedBy: currentUser.name,
+      issuedBy: currentUser?.name || 'State Admin',
       issuedRole: 'STATE_ADMIN',
       priority: 'INFO',
       content: advisoryContent,
@@ -100,7 +102,7 @@ export const StateAdminDashboardView: React.FC<StateAdminDashboardViewProps> = (
               <span>Directorate of Animal Husbandry • State Government of Maharashtra</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Statewide Epidemiological Directorate: {currentUser.name}
+              Statewide Epidemiological Directorate: {currentUser?.name || 'State Admin'}
             </h1>
             <p className="text-blue-100 text-sm mt-1 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-blue-300" />
@@ -150,7 +152,7 @@ export const StateAdminDashboardView: React.FC<StateAdminDashboardViewProps> = (
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Statewide Active Outbreaks</span>
-            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{outbreaks.length}</div>
+            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{(outbreaks || []).length}</div>
             <div className="text-xs text-rose-600 font-medium mt-1">Pune, Satara, Belagavi</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center">
@@ -278,6 +280,9 @@ export const StateAdminDashboardView: React.FC<StateAdminDashboardViewProps> = (
               </div>
             </div>
           </div>
+
+          {/* Machine Learning Pipeline Status */}
+          <MLModelStatusCard />
         </div>
 
         {/* Right Col: Statewide Advisories & Strategic Reserves */}

@@ -832,6 +832,7 @@ export const RegisterWizard: React.FC<RegisterWizardProps> = ({
                   <option value="hi">हिन्दी (Hindi)</option>
                   <option value="kn">ಕನ್ನಡ (Kannada)</option>
                   <option value="te">తెలుగు (Telugu)</option>
+                  <option value="mr">मराठी (Marathi)</option>
                 </select>
               </div>
             </div>

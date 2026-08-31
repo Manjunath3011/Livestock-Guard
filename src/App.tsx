@@ -34,6 +34,7 @@ import { ReportsAnalyticsView } from './components/views/ReportsAnalyticsView';
 import { SettingsView } from './components/views/SettingsView';
 import { TestingCenterView } from './components/views/TestingCenterView';
 import { SystemAdminDashboardView } from './components/views/SystemAdminDashboardView';
+import { MLDataAndModelManagement } from './components/common/MLDataAndModelManagement';
 import { Role } from './types';
 import { Check, Sparkles } from 'lucide-react';
 
@@ -50,16 +51,16 @@ export function App() {
   }, []);
 
   const currentUser = store.getCurrentUser();
-  const cases = store.getCases();
-  const outbreaks = store.getOutbreaks();
-  const animals = store.getAnimals();
-  const herds = store.getHerds();
-  const farms = store.getFarms();
-  const labSamples = store.getLabSamples();
-  const vaccinations = store.getVaccinations();
-  const treatments = store.getTreatments();
-  const mortalities = store.getMortalityReports();
-  const alerts = store.getAlerts();
+  const cases = store.getCases() || [];
+  const outbreaks = store.getOutbreaks() || [];
+  const animals = store.getAnimals() || [];
+  const herds = store.getHerds() || [];
+  const farms = store.getFarms() || [];
+  const labSamples = store.getLabSamples() || [];
+  const vaccinations = store.getVaccinations() || [];
+  const treatments = store.getTreatments() || [];
+  const mortalities = store.getMortalityReports() || [];
+  const alerts = store.getAlerts() || [];
   const weather = store.getWeather();
 
   // Navigation & Modal State
@@ -265,6 +266,9 @@ export function App() {
 
       case 'testing_center':
         return <TestingCenterView />;
+
+      case 'ml_management':
+        return <MLDataAndModelManagement />;
 
       case 'system_admin':
         return <SystemAdminDashboardView onNavigate={setActiveModule} />;

@@ -65,15 +65,15 @@ export const LaboratoryDashboardView: React.FC<LaboratoryDashboardViewProps> = (
     refreshData();
   };
 
-  const pendingSamples = samples.filter(s => s.status !== 'RESULT_AVAILABLE');
-  const completedSamples = samples.filter(s => s.status === 'RESULT_AVAILABLE');
-  const positiveSamples = samples.filter(s => s.result === 'POSITIVE');
+  const pendingSamples = (samples || []).filter(s => s.status !== 'RESULT_AVAILABLE');
+  const completedSamples = (samples || []).filter(s => s.status === 'RESULT_AVAILABLE');
+  const positiveSamples = (samples || []).filter(s => s.result === 'POSITIVE');
 
-  const filteredSamples = samples.filter(s => {
-    const matchesSearch = s.sampleCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          s.caseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          s.suspectedDiseaseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          s.species.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredSamples = (samples || []).filter(s => {
+    const matchesSearch = (s.sampleCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (s.caseNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (s.suspectedDiseaseName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (s.species || '').toLowerCase().includes(searchQuery.toLowerCase());
     if (filterStatus === 'PENDING') return matchesSearch && s.status !== 'RESULT_AVAILABLE';
     if (filterStatus === 'COMPLETED') return matchesSearch && s.status === 'RESULT_AVAILABLE';
     if (filterStatus === 'POSITIVE') return matchesSearch && s.result === 'POSITIVE';
@@ -91,7 +91,7 @@ export const LaboratoryDashboardView: React.FC<LaboratoryDashboardViewProps> = (
               <span>District Animal Disease Investigation Laboratory (DIAL)</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Diagnostic Lab Workbench: {currentUser.name}
+              Diagnostic Lab Workbench: {currentUser?.name || 'Lab Staff'}
             </h1>
             <p className="text-purple-100 text-sm mt-1 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-purple-300" />
@@ -130,7 +130,7 @@ export const LaboratoryDashboardView: React.FC<LaboratoryDashboardViewProps> = (
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Specimens</span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{samples.length}</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{(samples || []).length}</div>
             <div className="text-xs text-purple-600 font-medium mt-1">Across 4 species</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 flex items-center justify-center">
@@ -141,7 +141,7 @@ export const LaboratoryDashboardView: React.FC<LaboratoryDashboardViewProps> = (
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Pending RT-PCR / ELISA</span>
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{pendingSamples.length}</div>
+            <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{(pendingSamples || []).length}</div>
             <div className="text-xs text-amber-600 font-medium mt-1">Under processing</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 flex items-center justify-center">
@@ -152,7 +152,7 @@ export const LaboratoryDashboardView: React.FC<LaboratoryDashboardViewProps> = (
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Positive Confirmations</span>
-            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{positiveSamples.length}</div>
+            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{(positiveSamples || []).length}</div>
             <div className="text-xs text-rose-600 font-medium mt-1">Escalated to DHO</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-600 flex items-center justify-center">
@@ -203,19 +203,19 @@ export const LaboratoryDashboardView: React.FC<LaboratoryDashboardViewProps> = (
                 onClick={() => setFilterStatus('ALL')}
                 className={`px-3 py-1.5 rounded-lg transition ${filterStatus === 'ALL' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
               >
-                All ({samples.length})
+                All ({(samples || []).length})
               </button>
               <button
                 onClick={() => setFilterStatus('PENDING')}
                 className={`px-3 py-1.5 rounded-lg transition ${filterStatus === 'PENDING' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
               >
-                Pending ({pendingSamples.length})
+                Pending ({(pendingSamples || []).length})
               </button>
               <button
                 onClick={() => setFilterStatus('POSITIVE')}
                 className={`px-3 py-1.5 rounded-lg transition ${filterStatus === 'POSITIVE' ? 'bg-white dark:bg-slate-700 text-rose-600 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
               >
-                Positive ({positiveSamples.length})
+                Positive ({(positiveSamples || []).length})
               </button>
             </div>
           </div>
