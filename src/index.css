@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+/* Leaflet custom marker overrides */
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.leaflet-container {
+  font-family: inherit !important;
+  background-color: #030712 !important;
+}
+

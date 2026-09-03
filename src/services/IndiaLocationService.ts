@@ -605,4 +605,5 @@ class IndiaLocationService {
   }
 }
 
+export { IndiaLocationService };
 export const indiaLocationService = new IndiaLocationService();

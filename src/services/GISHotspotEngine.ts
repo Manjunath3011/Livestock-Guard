@@ -20,6 +20,7 @@ import {
 } from '../types/gis';
 import { notificationService } from './NotificationService';
 import { store } from './store';
+import { GISMapAdapter } from './gis/GISMapAdapter';
 
 // Known severe diseases with higher epidemiological threat weights
 const SEVERE_DISEASES: Record<string, { weight: number; label: string }> = {
@@ -319,11 +320,19 @@ export class GISHotspotEngine {
     const results: HotspotCluster[] = [];
 
     clusterMap.forEach((cl, key) => {
+      // Credibility rule: Rejected reports do not form or contribute to active hotspots
+      const nonRejectedCases = cl.cases.filter(
+        c => c.credibilityStatus !== 'REJECTED' && c.status !== 'REJECTED'
+      );
+      if (nonRejectedCases.length === 0 && cl.outbreaks.length === 0 && cl.mortalities.length === 0) {
+        return; // Skip clusters consisting exclusively of rejected reports
+      }
+
       const totalCases = cl.cases.length;
       const totalPrevCases = cl.prevCases.length;
-      const totalAffectedAnimals = cl.cases.reduce((sum, c) => sum + (c.affectedCount || 1), 0) +
+      const totalAffectedAnimals = nonRejectedCases.reduce((sum, c) => sum + (c.affectedCount || 1), 0) +
         cl.outbreaks.reduce((sum, o) => sum + (o.affectedAnimalCount || 0), 0);
-      const totalDeaths = cl.cases.reduce((sum, c) => sum + (c.deadCount || 0), 0) +
+      const totalDeaths = nonRejectedCases.reduce((sum, c) => sum + (c.deadCount || 0), 0) +
         cl.mortalities.reduce((sum, m) => sum + (m.deadCount || 0), 0) +
         cl.outbreaks.reduce((sum, o) => sum + (o.totalDeaths || 0), 0);
 
@@ -978,5 +987,15 @@ export class GISHotspotEngine {
     };
 
     store.addAlert(newAlert);
+  }
+
+  /**
+   * Convert calculated Hotspot clusters to GeoJSON polygons and centroid points
+   */
+  public static toGeoJSON(hotspots: HotspotCluster[]) {
+    return {
+      polygons: GISMapAdapter.hotspotsToPolygonsGeoJSON(hotspots),
+      centroids: GISMapAdapter.hotspotsToCentroidsGeoJSON(hotspots)
+    };
   }
 }
