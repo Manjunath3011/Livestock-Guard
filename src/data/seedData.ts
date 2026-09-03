@@ -575,6 +575,69 @@ export const SEED_CASES: Case[] = [
     treatmentIds: ['trt_2026_001'],
     createdAt: '2026-08-22T08:30:00Z',
     updatedAt: '2026-08-23T11:45:00Z',
+    // Credibility & Verification
+    credibilityScore: 88,
+    credibilityTier: 'TRUSTED',
+    credibilityStatus: 'VERIFIED',
+    verificationState: 'VET_VERIFIED',
+    verifiedBy: 'Dr. Anand Deshmukh',
+    verifiedAt: '2026-08-22T10:15:00Z',
+    verificationNotes: 'Physical triage confirmed bilateral foot vesicles and hyper-salivation. Diagnostic samples collected.',
+    credibilityReasons: [
+      '✓ Clinical signs verified in person by Veterinary Officer Dr. Anand Deshmukh',
+      '✓ Animal record verified on central registry (IN-MH-10029381)',
+      '✓ GPS location verified within Pune district perimeter (Baramati Block)',
+      '✓ Biological diagnostic sample collected for RT-PCR testing',
+      '✓ Clinical and numerical data fields biologically consistent'
+    ],
+    anomalyFlags: [],
+    locationMatchScore: 95,
+    reporterTrustScore: 80,
+    animalHistoryConsistencyScore: 90,
+    credibilityFeatureBreakdown: {
+      dataQuality: 95,
+      duplicateSimilarity: 90,
+      locationConsistency: 95,
+      temporalConsistency: 90,
+      reporterHistory: 80,
+      animalHistory: 90,
+      evidenceStrength: 90
+    },
+    verificationEvidence: [
+      {
+        type: 'VET_VISIT',
+        reference: 'CLIN-2026-0089',
+        description: 'Field clinical evaluation by Baramati Polyclinic Veterinary Officer',
+        addedBy: 'Dr. Anand Deshmukh',
+        addedAt: '2026-08-22T10:15:00Z',
+        notes: 'Oral inspection confirmed ruptured vesicles on lower gum and interdigital sores.'
+      }
+    ],
+    credibilityAuditTrail: [
+      {
+        id: 'aud_c1_1',
+        action: 'VET_VERIFIED',
+        previousStatus: 'PENDING',
+        newStatus: 'VERIFIED',
+        actorId: 'usr_vet_1',
+        actorName: 'Dr. Anand Deshmukh',
+        actorRole: 'VETERINARIAN',
+        timestamp: '2026-08-22T10:15:00Z',
+        reason: 'Clinical signs physically verified at farm shed. Sample collected.',
+        evidenceReference: 'CLIN-2026-0089'
+      },
+      {
+        id: 'aud_c1_0',
+        action: 'INITIAL_ASSESSMENT',
+        previousStatus: 'NONE',
+        newStatus: 'PENDING',
+        actorId: 'usr_farmer_1',
+        actorName: 'Ramesh Patil',
+        actorRole: 'FARMER',
+        timestamp: '2026-08-22T08:30:00Z',
+        reason: 'Automated baseline assessment: 88/100 (TRUSTED).'
+      }
+    ],
     auditTrail: [
       { id: 'aud_1', timestamp: '2026-08-22T08:30:00Z', actorId: 'usr_farmer_1', actorName: 'Ramesh Patil', actorRole: 'FARMER', action: 'CASE_REPORTED', details: 'Farmer reported acute vesicular signs and severe salivation in cow Gauri.' },
       { id: 'aud_2', timestamp: '2026-08-22T10:15:00Z', actorId: 'usr_vet_1', actorName: 'Dr. Anand Deshmukh', actorRole: 'VETERINARIAN', action: 'STATUS_UPDATED', details: 'Status changed from NEW to VET_VISIT_REQUIRED. Urgent field triage scheduled.' },
@@ -629,6 +692,46 @@ export const SEED_CASES: Case[] = [
     priority: 'URGENT',
     createdAt: '2026-08-22T14:20:00Z',
     updatedAt: '2026-08-23T08:10:00Z',
+    // Credibility & Verification
+    credibilityScore: 84,
+    credibilityTier: 'TRUSTED',
+    credibilityStatus: 'VERIFIED',
+    verificationState: 'FIELD_VERIFIED',
+    verifiedBy: 'Sunita Gaikwad',
+    verifiedAt: '2026-08-22T14:20:00Z',
+    verificationNotes: 'Certified Field Worker on-site observation during beat round.',
+    credibilityReasons: [
+      '✓ Ground inspection completed by Field Worker / Para-Vet Sunita Gaikwad',
+      '✓ Corroborated with active FMD outbreak in neighboring sector',
+      '✓ GPS coordinates align with Satara District perimeter',
+      '✓ Animal record verified on central registry'
+    ],
+    anomalyFlags: [],
+    locationMatchScore: 90,
+    reporterTrustScore: 85,
+    animalHistoryConsistencyScore: 85,
+    credibilityFeatureBreakdown: {
+      dataQuality: 90,
+      duplicateSimilarity: 85,
+      locationConsistency: 90,
+      temporalConsistency: 90,
+      reporterHistory: 85,
+      animalHistory: 85,
+      evidenceStrength: 80
+    },
+    credibilityAuditTrail: [
+      {
+        id: 'aud_c2_1',
+        action: 'FIELD_VERIFIED',
+        previousStatus: 'PENDING',
+        newStatus: 'VERIFIED',
+        actorId: 'usr_field_worker_1',
+        actorName: 'Sunita Gaikwad',
+        actorRole: 'FIELD_WORKER',
+        timestamp: '2026-08-22T14:20:00Z',
+        reason: 'On-site beat inspection verified clinical mouth lesions and lameness.'
+      }
+    ],
     auditTrail: [
       { id: 'aud_4', timestamp: '2026-08-22T14:20:00Z', actorId: 'usr_field_worker_1', actorName: 'Sunita Gaikwad', actorRole: 'FIELD_WORKER', action: 'CASE_REPORTED', details: 'Case reported during village active surveillance routine.' }
     ]
@@ -678,6 +781,31 @@ export const SEED_CASES: Case[] = [
     sampleIds: ['smp_2026_002'],
     createdAt: '2026-08-21T16:00:00Z',
     updatedAt: '2026-08-24T06:00:00Z',
+    // Credibility & Verification
+    credibilityScore: 82,
+    credibilityTier: 'TRUSTED',
+    credibilityStatus: 'PENDING',
+    verificationState: 'LAB_CONFIRMATION_PENDING',
+    isCriticalUrgentVerification: true,
+    credibilityReasons: [
+      '⚡ High Consequence Trigger: Prioritized for urgent verification (1 livestock mortality reported)',
+      '✓ Biological diagnostic sample collected and under molecular assay at lab',
+      '✓ Data fields biologically consistent with PPR presentation',
+      '✓ Herd record validated on Belagavi registry'
+    ],
+    anomalyFlags: [],
+    locationMatchScore: 90,
+    reporterTrustScore: 70,
+    animalHistoryConsistencyScore: 85,
+    credibilityFeatureBreakdown: {
+      dataQuality: 92,
+      duplicateSimilarity: 90,
+      locationConsistency: 90,
+      temporalConsistency: 85,
+      reporterHistory: 70,
+      animalHistory: 85,
+      evidenceStrength: 75
+    },
     auditTrail: [
       { id: 'aud_5', timestamp: '2026-08-21T16:00:00Z', actorId: 'usr_farmer_5', actorName: 'Basavaraj Patil', actorRole: 'FARMER', action: 'CASE_REPORTED', details: 'Farmer reported multi-animal illness and 1 goat mortality.' },
       { id: 'aud_6', timestamp: '2026-08-22T09:30:00Z', actorId: 'usr_vet_1', actorName: 'Dr. Anand Deshmukh', actorRole: 'VETERINARIAN', action: 'SAMPLE_COLLECTED', details: 'Nasal swab and EDTA blood collected for PPR RT-PCR.' }
@@ -724,9 +852,291 @@ export const SEED_CASES: Case[] = [
     priority: 'EMERGENCY',
     createdAt: '2026-08-20T10:00:00Z',
     updatedAt: '2026-08-23T15:00:00Z',
+    // Credibility & Verification
+    credibilityScore: 98,
+    credibilityTier: 'TRUSTED',
+    credibilityStatus: 'VERIFIED',
+    verificationState: 'LAB_CONFIRMED',
+    verifiedBy: 'Dr. Priya Kulkarni',
+    verifiedAt: '2026-08-23T15:00:00Z',
+    verificationNotes: 'Capripoxvirus real-time PCR returned POSITIVE. Official case confirmation issued.',
+    credibilityReasons: [
+      '✓ Definitive Laboratory diagnostic confirmation on file (RT-PCR Positive)',
+      '✓ Animal record verified on Anand cooperative dairy registry',
+      '✓ GPS location verified within declared containment zone',
+      '✓ Complete epidemiological trace recorded'
+    ],
+    anomalyFlags: [],
+    locationMatchScore: 95,
+    reporterTrustScore: 90,
+    animalHistoryConsistencyScore: 95,
+    credibilityFeatureBreakdown: {
+      dataQuality: 98,
+      duplicateSimilarity: 95,
+      locationConsistency: 95,
+      temporalConsistency: 95,
+      reporterHistory: 90,
+      animalHistory: 95,
+      evidenceStrength: 100
+    },
+    verificationEvidence: [
+      {
+        type: 'LAB_SAMPLE',
+        reference: 'LAB-2026-PCR-004',
+        description: 'Capripoxvirus Real-Time PCR Assay Report',
+        addedBy: 'Dr. Priya Kulkarni',
+        addedAt: '2026-08-23T15:00:00Z',
+        notes: 'Target gene: RPO30. Ct value: 21.4 (High viral load).'
+      }
+    ],
+    credibilityAuditTrail: [
+      {
+        id: 'aud_c4_1',
+        action: 'LAB_CONFIRMED',
+        previousStatus: 'PENDING',
+        newStatus: 'VERIFIED',
+        actorId: 'usr_lab_1',
+        actorName: 'Dr. Priya Kulkarni',
+        actorRole: 'LABORATORY_STAFF',
+        timestamp: '2026-08-23T15:00:00Z',
+        reason: 'Definitive molecular RT-PCR positive result for Capripoxvirus.',
+        evidenceReference: 'LAB-2026-PCR-004'
+      }
+    ],
     auditTrail: [
       { id: 'aud_7', timestamp: '2026-08-20T10:00:00Z', actorId: 'usr_farmer_4', actorName: 'Bhavesh Patel', actorRole: 'FARMER', action: 'CASE_REPORTED', details: 'Skin nodule case reported.' },
       { id: 'aud_8', timestamp: '2026-08-23T15:00:00Z', actorId: 'usr_lab_1', actorName: 'Dr. Priya Kulkarni', actorRole: 'LABORATORY_STAFF', action: 'LAB_RESULT_CONFIRMED', details: 'Capripoxvirus real-time PCR returned POSITIVE.' }
+    ]
+  },
+  {
+    id: 'cas_2026_005',
+    caseNumber: 'CAS-MH-PUN-2026-0094',
+    animalId: 'anm_buf_201',
+    animalTag: 'IN-MH-10029390 (Kalyani)',
+    herdId: 'hrd_02',
+    herdName: 'Patil Murrah Buffalo Herd',
+    species: 'Buffalo',
+    ownerName: 'Ramesh Patil',
+    ownerPhone: '+91 98220 11223',
+    farmId: 'farm_01',
+    farmName: 'Patil Progressive Dairy Farm',
+    stateId: 'st_mah',
+    stateName: 'Maharashtra',
+    districtId: 'dt_pune',
+    districtName: 'Pune',
+    blockId: 'bk_baramati',
+    villageId: 'vl_malegaon_bk',
+    villageName: 'Malegaon Budruk',
+    latitude: 18.1524,
+    longitude: 74.5768,
+    reporterId: 'usr_farmer_1',
+    reporterName: 'Ramesh Patil',
+    reporterRole: 'FARMER',
+    symptoms: [
+      { symptomId: 'sym_diarrhea', symptomName: 'Mild Digestive Loose Stool', severity: 'mild', onsetDate: '2026-08-15' },
+      { symptomId: 'sym_reduced_feed', symptomName: 'Off Feed / Partial Inappetence', severity: 'mild', onsetDate: '2026-08-15' }
+    ],
+    naturalLanguageDescription: 'Buffalo showed slight digestive sluggishness after change of silage feed. Normal rumination resumed after probiotic bolus.',
+    symptomsStartDate: '2026-08-15',
+    affectedCount: 1,
+    deadCount: 0,
+    suspectedDiseases: [
+      { diseaseId: 'dis_indigestion', diseaseName: 'Simple Indigestion / Ruminal Stasis', scientificName: 'Non-infectious', screeningScore: 88, confidenceLevel: 'HIGH', matchingSymptoms: ['Off Feed', 'Loose Stool'], keyDifferentiators: ['No fever, no mouth lesions, localized feed change'], notifiable: false, zoonotic: false }
+    ],
+    riskScore: 18,
+    riskLevel: 'LOW',
+    status: 'RESOLVED',
+    priority: 'ROUTINE',
+    createdAt: '2026-08-15T09:00:00Z',
+    updatedAt: '2026-08-18T16:00:00Z',
+    // Credibility & Verification
+    credibilityScore: 92,
+    credibilityTier: 'TRUSTED',
+    credibilityStatus: 'VERIFIED',
+    verificationState: 'VET_VERIFIED',
+    verifiedBy: 'Dr. Anand Deshmukh',
+    verifiedAt: '2026-08-16T11:00:00Z',
+    verificationNotes: 'Simple non-infectious ruminal indigestion. Full clinical recovery confirmed.',
+    credibilityReasons: [
+      '✓ Routine non-epidemic case verified and resolved',
+      '✓ Animal registered with up-to-date health records',
+      '✓ Clinical recovery documented'
+    ],
+    anomalyFlags: [],
+    locationMatchScore: 95,
+    reporterTrustScore: 85,
+    animalHistoryConsistencyScore: 95,
+    credibilityFeatureBreakdown: {
+      dataQuality: 95,
+      duplicateSimilarity: 95,
+      locationConsistency: 95,
+      temporalConsistency: 95,
+      reporterHistory: 85,
+      animalHistory: 95,
+      evidenceStrength: 85
+    },
+    auditTrail: [
+      { id: 'aud_c5_1', timestamp: '2026-08-15T09:00:00Z', actorId: 'usr_farmer_1', actorName: 'Ramesh Patil', actorRole: 'FARMER', action: 'CASE_REPORTED', details: 'Reported mild inappetence.' },
+      { id: 'aud_c5_2', timestamp: '2026-08-18T16:00:00Z', actorId: 'usr_vet_1', actorName: 'Dr. Anand Deshmukh', actorRole: 'VETERINARIAN', action: 'CASE_RESOLVED', details: 'Cow recovered completely. Case marked resolved.' }
+    ]
+  },
+  {
+    id: 'cas_2026_006',
+    caseNumber: 'CAS-MH-PUN-2026-0102',
+    species: 'Buffalo',
+    ownerName: 'Ganesh Shinde (New Smallholder)',
+    ownerPhone: '+91 97654 33211',
+    farmId: 'farm_shinde_01',
+    farmName: 'Shinde Homestead Shelter',
+    stateId: 'st_mah',
+    stateName: 'Maharashtra',
+    districtId: 'dt_pune',
+    districtName: 'Pune',
+    blockId: 'bk_indapur',
+    villageId: 'vl_shirsuphal',
+    villageName: 'Shirsuphal',
+    latitude: 18.2541,
+    longitude: 74.6982,
+    reporterId: 'usr_new_farmer_99',
+    reporterName: 'Ganesh Shinde',
+    reporterRole: 'FARMER',
+    symptoms: [
+      { symptomId: 'sym_sudden_death', symptomName: 'Sudden Unexplained Death / Peracute Collapse', severity: 'severe', onsetDate: '2026-08-24' },
+      { symptomId: 'sym_dark_blood', symptomName: 'Dark Unclotted Blood from Body Orifices', severity: 'severe', onsetDate: '2026-08-24' }
+    ],
+    naturalLanguageDescription: 'Two of my buffaloes collapsed suddenly within 2 hours of grazing near the canal. Dark tarry blood oozing from nostrils and rectum. No ear tags on them as I bought them recently.',
+    symptomsStartDate: '2026-08-24',
+    affectedCount: 2,
+    deadCount: 2,
+    suspectedDiseases: [
+      { diseaseId: 'dis_anthrax', diseaseName: 'Anthrax (Bacillus anthracis)', scientificName: 'Bacillus anthracis', screeningScore: 92, confidenceLevel: 'HIGH', matchingSymptoms: ['Sudden Death', 'Dark Unclotted Blood'], keyDifferentiators: ['Peracute death with incomplete rigor mortis and orifice bleeding'], notifiable: true, zoonotic: true }
+    ],
+    riskScore: 96,
+    riskLevel: 'CRITICAL',
+    status: 'VET_VISIT_REQUIRED',
+    priority: 'EMERGENCY',
+    createdAt: '2026-08-24T05:45:00Z',
+    updatedAt: '2026-08-24T05:45:00Z',
+    // Credibility & Verification - DEMO CASE: Low Credibility + Sudden Mortality (Urgent Verification Override)
+    credibilityScore: 44,
+    credibilityTier: 'LOW_CREDIBILITY',
+    credibilityStatus: 'NEEDS_VERIFICATION',
+    verificationState: 'FIELD_VERIFICATION_PENDING',
+    isCriticalUrgentVerification: true,
+    urgentReason: 'URGENT EPIDEMIOLOGICAL ESCALATION: 2 livestock mortality reported. Suspected zoonotic pathogen risk (Anthrax). High-consequence notifiable condition. Immediate in-person field verification prioritized.',
+    credibilityReasons: [
+      '⚡ High Consequence Trigger: Prioritized for urgent verification (2 livestock mortality reported, suspected Anthrax zoonosis)',
+      'ⓘ New reporter account without prior verification history (evaluated with neutral baseline)',
+      'ⓘ Untagged/temporary livestock profile',
+      'ⓘ Initial report awaiting ground clinical verification (NEVER suppressed due to mortality signal)'
+    ],
+    anomalyFlags: ['ANIMAL_HISTORY_UNAVAILABLE', 'UNREGISTERED_REPORTER'],
+    locationMatchScore: 80,
+    reporterTrustScore: 50,
+    animalHistoryConsistencyScore: 40,
+    credibilityFeatureBreakdown: {
+      dataQuality: 85,
+      duplicateSimilarity: 90,
+      locationConsistency: 80,
+      temporalConsistency: 85,
+      reporterHistory: 50,
+      animalHistory: 40,
+      evidenceStrength: 30
+    },
+    credibilityAuditTrail: [
+      {
+        id: 'aud_c6_0',
+        action: 'INITIAL_ASSESSMENT',
+        previousStatus: 'NONE',
+        newStatus: 'NEEDS_VERIFICATION',
+        actorId: 'usr_new_farmer_99',
+        actorName: 'Ganesh Shinde',
+        actorRole: 'FARMER',
+        timestamp: '2026-08-24T05:45:00Z',
+        reason: 'Automated assessment: 44/100 (LOW_CREDIBILITY). Critical Safety Override activated: Sudden mortality reported.'
+      }
+    ],
+    auditTrail: [
+      { id: 'aud_c6_1', timestamp: '2026-08-24T05:45:00Z', actorId: 'usr_new_farmer_99', actorName: 'Ganesh Shinde', actorRole: 'FARMER', action: 'CASE_REPORTED', details: 'Farmer reported sudden collapse and mortality in 2 buffaloes.' }
+    ]
+  },
+  {
+    id: 'cas_2026_007',
+    caseNumber: 'CAS-MH-PUN-2026-0105',
+    animalTag: 'IN-MH-10029381 (Gauri)',
+    species: 'Cattle',
+    ownerName: 'Ramesh Patil',
+    ownerPhone: '+91 98220 11223',
+    farmId: 'farm_01',
+    farmName: 'Patil Progressive Dairy Farm',
+    stateId: 'st_mah',
+    stateName: 'Maharashtra',
+    districtId: 'dt_pune',
+    districtName: 'Pune',
+    blockId: 'bk_baramati',
+    villageId: 'vl_malegaon_bk',
+    villageName: 'Malegaon Budruk',
+    latitude: 18.1524,
+    longitude: 74.5768,
+    reporterId: 'usr_farmer_1',
+    reporterName: 'Ramesh Patil',
+    reporterRole: 'FARMER',
+    symptoms: [
+      { symptomId: 'sym_salivation', symptomName: 'Excessive Drooling / Frothy Salivation', severity: 'severe', onsetDate: '2026-08-21' },
+      { symptomId: 'sym_mouth_lesions', symptomName: 'Mouth Blisters, Ulcers & Vesicles', severity: 'severe', onsetDate: '2026-08-22' }
+    ],
+    naturalLanguageDescription: 'Duplicate test submission: 25 dead animals out of 2 affected.',
+    symptomsStartDate: '2026-08-21',
+    affectedCount: 2,
+    deadCount: 25,
+    suspectedDiseases: [
+      { diseaseId: 'dis_fmd', diseaseName: 'Foot-and-Mouth Disease', scientificName: 'Aphthovirus', screeningScore: 94, confidenceLevel: 'HIGH', matchingSymptoms: ['Excessive Drooling', 'Mouth Blisters'], keyDifferentiators: ['Vesicular lesions'], notifiable: true, zoonotic: false }
+    ],
+    riskScore: 70,
+    riskLevel: 'HIGH',
+    status: 'UNDER_REVIEW',
+    priority: 'ROUTINE',
+    createdAt: '2026-08-23T12:00:00Z',
+    updatedAt: '2026-08-23T12:00:00Z',
+    // Credibility & Verification - DEMO CASE: Duplicate and Numerical Contradiction
+    credibilityScore: 28,
+    credibilityTier: 'LOW_CREDIBILITY',
+    credibilityStatus: 'NEEDS_VERIFICATION',
+    verificationState: 'NOT_REVIEWED',
+    duplicateOfCaseId: 'cas_2026_001',
+    credibilityReasons: [
+      '⚠ Potential duplicate submission of Case #CAS-MH-PUN-2026-0089',
+      '⚠ Contradiction: Reported deaths (25) exceed total affected animals (2)',
+      '⚠ Discrepancy between recorded herd size and mortality count'
+    ],
+    anomalyFlags: ['POSSIBLE_DUPLICATE_REPORT', 'MORTALITY_EXCEEDS_AFFECTED'],
+    locationMatchScore: 90,
+    reporterTrustScore: 60,
+    animalHistoryConsistencyScore: 40,
+    credibilityFeatureBreakdown: {
+      dataQuality: 20,
+      duplicateSimilarity: 30,
+      locationConsistency: 90,
+      temporalConsistency: 70,
+      reporterHistory: 60,
+      animalHistory: 40,
+      evidenceStrength: 30
+    },
+    credibilityAuditTrail: [
+      {
+        id: 'aud_c7_0',
+        action: 'INITIAL_ASSESSMENT',
+        previousStatus: 'NONE',
+        newStatus: 'NEEDS_VERIFICATION',
+        actorId: 'usr_farmer_1',
+        actorName: 'Ramesh Patil',
+        actorRole: 'FARMER',
+        timestamp: '2026-08-23T12:00:00Z',
+        reason: 'Automated assessment: 28/100 (LOW_CREDIBILITY). Anomalies: POSSIBLE_DUPLICATE_REPORT, MORTALITY_EXCEEDS_AFFECTED.'
+      }
+    ],
+    auditTrail: [
+      { id: 'aud_c7_1', timestamp: '2026-08-23T12:00:00Z', actorId: 'usr_farmer_1', actorName: 'Ramesh Patil', actorRole: 'FARMER', action: 'CASE_REPORTED', details: 'Duplicate submission with contradictory mortality numbers.' }
     ]
   }
 ];

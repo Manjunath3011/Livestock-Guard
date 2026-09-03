@@ -14,12 +14,15 @@ import {
   AlertTriangle,
   ChevronRight,
   Shield,
+  ShieldCheck,
   Send,
   UserCheck,
   FileSpreadsheet
 } from 'lucide-react';
 import { store } from '../../services/store';
 import { FieldVisit, Case, Animal, Alert, LabSample, OfflineSyncItem } from '../../types';
+import { CredibilityBadge } from '../common/CredibilityBadge';
+import { CredibilityBreakdownModal } from '../common/CredibilityBreakdownModal';
 
 interface FieldWorkerDashboardViewProps {
   onNavigate: (module: string) => void;
@@ -36,6 +39,8 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
   const [selectedVisit, setSelectedVisit] = useState<FieldVisit | null>(null);
   const [visitNotes, setVisitNotes] = useState('');
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
+  const [selectedCaseForVerification, setSelectedCaseForVerification] = useState<Case | null>(null);
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
 
   const refreshData = () => {
     setCurrentUser(store.getCurrentUser());
@@ -69,6 +74,11 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
   const scheduledVisits = (fieldVisits || []).filter(v => v.status === 'SCHEDULED' || v.status === 'IN_PROGRESS');
   const completedVisits = (fieldVisits || []).filter(v => v.status === 'COMPLETED');
   const pendingSamples = (labSamples || []).filter(s => s.status === 'RECEIVED_AT_LAB' || s.status === 'IN_TRANSIT');
+
+  const casesToVerify = (cases || []).filter(
+    c => c.verificationState !== 'VET_VERIFIED' && c.verificationState !== 'LAB_CONFIRMED' && c.status !== 'RESOLVED' && c.status !== 'REJECTED'
+  );
+  const urgentVerificationCases = casesToVerify.filter(c => c.isCriticalUrgentVerification);
 
   return (
     <div className="space-y-6 pb-12">
@@ -305,6 +315,102 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
               ))}
             </div>
           </div>
+
+          {/* Disease Case Ground Verification Queue */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                  Clinical Case Ground Truth Verification
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Ground inspection, photographic symptom confirmation, and location verification
+                </p>
+              </div>
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full self-start sm:self-auto">
+                {casesToVerify.length} Awaiting Ground Review
+              </span>
+            </div>
+
+            {urgentVerificationCases.length > 0 && (
+              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="font-bold">Urgent Verification Mandatory:</strong>
+                  <p className="mt-0.5 text-[11px] text-amber-800 dark:text-amber-300">
+                    {urgentVerificationCases.length} case(s) flagged for acute symptom urgency or herd mortality. Verification bypasses routine credibility suppression to ensure zero outbreak containment delays.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {casesToVerify.length === 0 ? (
+                <div className="text-center py-6 text-xs text-slate-400">
+                  All active cases in your beat have completed ground verification.
+                </div>
+              ) : (
+                casesToVerify.map(c => (
+                  <div
+                    key={c.id}
+                    className={`p-4 rounded-xl border transition-all ${
+                      c.isCriticalUrgentVerification
+                        ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/80'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                            {c.caseNumber}
+                          </span>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            {c.species} • {c.villageName}
+                          </span>
+                          <CredibilityBadge
+                            score={c.credibilityScore}
+                            tier={c.credibilityTier}
+                            verificationState={c.verificationState}
+                            isUrgent={c.isCriticalUrgentVerification}
+                            size="sm"
+                          />
+                        </div>
+
+                        <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 mt-1.5">
+                          Suspected: {c.suspectedDiseases?.[0]?.diseaseName || 'Clinical Examination Needed'}
+                        </p>
+
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                          Reported by: <span className="font-medium text-slate-700 dark:text-slate-300">{c.reporterName}</span> ({c.reporterRole}) • Farmer: <span className="font-medium">{c.ownerName}</span> ({c.ownerPhone})
+                        </div>
+
+                        {c.urgentReason && (
+                          <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 font-medium">
+                            ⚡ {c.urgentReason}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        <button
+                          onClick={() => {
+                            setSelectedCaseForVerification(c);
+                            setIsVerificationModalOpen(true);
+                          }}
+                          className="text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Verify on Ground
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Right Col: Quick Field Forms & Actions */}
@@ -434,6 +540,24 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
             </div>
           </div>
         </div>
+      )}
+
+      {/* Ground Verification & Credibility Audit Modal */}
+      {selectedCaseForVerification && (
+        <CredibilityBreakdownModal
+          caseItem={selectedCaseForVerification}
+          currentUser={currentUser}
+          isOpen={isVerificationModalOpen}
+          initialAction="FIELD_VERIFY"
+          onClose={() => {
+            setIsVerificationModalOpen(false);
+            setSelectedCaseForVerification(null);
+          }}
+          onCaseUpdated={updated => {
+            setSelectedCaseForVerification(updated);
+            refreshData();
+          }}
+        />
       )}
     </div>
   );

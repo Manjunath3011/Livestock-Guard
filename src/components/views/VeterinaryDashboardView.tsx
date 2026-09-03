@@ -3,6 +3,8 @@ import { Case, User, CaseStatus, LabSample, FollowUpRecord } from '../../types';
 import { store } from '../../services/store';
 import { RiskBadge } from '../common/RiskBadge';
 import { CaseStatusBadge } from '../common/CaseStatusBadge';
+import { CredibilityBadge } from '../common/CredibilityBadge';
+import { CredibilityBreakdownModal } from '../common/CredibilityBreakdownModal';
 import { Modal } from '../common/Modal';
 import { HybridDecisionSupportCard } from '../common/HybridDecisionSupportCard';
 import { HybridRiskEngine } from '../../services/HybridRiskEngine';
@@ -15,6 +17,7 @@ import {
   FlaskConical,
   Pill,
   ShieldAlert,
+  ShieldCheck,
   Clock,
   MapPin,
   ChevronRight,
@@ -52,6 +55,8 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [isEscalateModalOpen, setIsEscalateModalOpen] = useState(false);
+  const [isCredibilityModalOpen, setIsCredibilityModalOpen] = useState(false);
+  const [credibilityFilter, setCredibilityFilter] = useState<string>('ALL');
 
   // Status Change State
   const [newStatus, setNewStatus] = useState<CaseStatus>('VET_VISIT_REQUIRED');
@@ -75,7 +80,7 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
   const [dosage, setDosage] = useState('15 ml IM OD for 3 days');
   const [treatmentNotes, setTreatmentNotes] = useState('Provide soft mash feed and 2% sodium carbonate mouth wash.');
 
-  const [caseDetailTab, setCaseDetailTab] = useState<'DECISION_SUPPORT' | 'OVERVIEW' | 'FOLLOWUPS' | 'AUDIT'>('DECISION_SUPPORT');
+  const [caseDetailTab, setCaseDetailTab] = useState<'DECISION_SUPPORT' | 'CREDIBILITY' | 'OVERVIEW' | 'FOLLOWUPS' | 'AUDIT'>('DECISION_SUPPORT');
 
   const selectedCaseHybridAssessment = useMemo(() => {
     if (!selectedCase) return null;
@@ -102,6 +107,11 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
   const filteredCases = (cases || []).filter(c => {
     if (statusFilter !== 'ALL' && c.status !== statusFilter) return false;
     if (riskFilter !== 'ALL' && c.riskLevel !== riskFilter) return false;
+    if (credibilityFilter === 'TRUSTED' && (c.credibilityScore ?? 75) < 80) return false;
+    if (credibilityFilter === 'REVIEW' && ((c.credibilityScore ?? 75) >= 80 || (c.credibilityScore ?? 75) < 60)) return false;
+    if (credibilityFilter === 'LOW' && (c.credibilityScore ?? 75) >= 60) return false;
+    if (credibilityFilter === 'URGENT' && !c.isCriticalUrgentVerification) return false;
+    if (credibilityFilter === 'UNVERIFIED' && c.verificationState && c.verificationState !== 'NOT_REVIEWED') return false;
     return true;
   });
 
@@ -254,6 +264,19 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
             <option value="MODERATE">{t('moderateRisk', 'Moderate Risk')}</option>
             <option value="LOW">{t('lowRisk', 'Low Risk')}</option>
           </select>
+
+          <select
+            value={credibilityFilter}
+            onChange={e => setCredibilityFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-1.5 text-xs font-medium focus:bg-white focus:outline-hidden"
+          >
+            <option value="ALL">All Credibility</option>
+            <option value="TRUSTED">Trusted (Score ≥ 80)</option>
+            <option value="REVIEW">Review (60 - 79)</option>
+            <option value="LOW">Low Credibility (&lt; 60)</option>
+            <option value="URGENT">⚡ Urgent Triage Override</option>
+            <option value="UNVERIFIED">Unverified Only</option>
+          </select>
         </div>
       </div>
 
@@ -306,7 +329,13 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
 
                   <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2">
                     <span>Reported by: {c.reporterName} ({c.reporterRole})</span>
-                    <span>{new Date(c.createdAt).toLocaleDateString()}</span>
+                    <CredibilityBadge
+                      score={c.credibilityScore}
+                      tier={c.credibilityTier}
+                      verificationState={c.verificationState}
+                      isUrgent={c.isCriticalUrgentVerification}
+                      size="sm"
+                    />
                   </div>
                 </div>
               );
@@ -329,6 +358,22 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                   <p className="text-xs text-slate-500">
                     {selectedCase.villageName}, {selectedCase.districtName}
                   </p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <CredibilityBadge
+                      score={selectedCase.credibilityScore}
+                      tier={selectedCase.credibilityTier}
+                      verificationState={selectedCase.verificationState}
+                      isUrgent={selectedCase.isCriticalUrgentVerification}
+                      size="sm"
+                      onClick={() => setIsCredibilityModalOpen(true)}
+                    />
+                    <button
+                      onClick={() => setIsCredibilityModalOpen(true)}
+                      className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
+                    >
+                      Audit / Verify
+                    </button>
+                  </div>
                 </div>
                 <RiskBadge level={selectedCase.riskLevel} score={selectedCase.riskScore} />
               </div>
@@ -385,9 +430,10 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
               </div>
 
               {/* Tab Selector */}
-              <div className="flex items-center gap-1 border-b border-slate-200 pb-1 text-xs">
+              <div className="flex items-center gap-1 border-b border-slate-200 pb-1 text-xs overflow-x-auto">
                 {[
                   { id: 'DECISION_SUPPORT', label: 'AI & Hybrid Support', icon: BrainCircuit },
+                  { id: 'CREDIBILITY', label: 'Credibility & Audit', icon: ShieldAlert },
                   { id: 'OVERVIEW', label: 'Case Overview', icon: FileText },
                   { id: 'FOLLOWUPS', label: `Follow-Ups (${(selectedCase.followUpRecords || []).length})`, icon: HeartPulse },
                   { id: 'AUDIT', label: 'Audit Log', icon: Clock }
@@ -398,7 +444,7 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                     <button
                       key={t.id}
                       onClick={() => setCaseDetailTab(t.id as any)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
                         isActive
                           ? 'bg-emerald-600 text-white shadow-xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -427,6 +473,86 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                       setIsSampleModalOpen(true);
                     }}
                   />
+                </div>
+              )}
+
+              {/* TAB 2: CREDIBILITY & VERIFICATION */}
+              {caseDetailTab === 'CREDIBILITY' && (
+                <div className="space-y-4 animate-in fade-in">
+                  {selectedCase.isCriticalUrgentVerification && (
+                    <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong>Urgent In-Person Verification Active:</strong>
+                        <p className="mt-0.5 text-[11px] text-amber-800">
+                          {selectedCase.urgentReason || 'Severe acute symptoms or mortality detected. Report is guaranteed high triage priority regardless of initial reporter credibility.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-semibold">Credibility Score:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-slate-900 text-sm">
+                          {selectedCase.credibilityScore ?? 75} / 100
+                        </span>
+                        <CredibilityBadge
+                          score={selectedCase.credibilityScore}
+                          tier={selectedCase.credibilityTier}
+                          verificationState={selectedCase.verificationState}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+                      <span className="text-slate-500 font-semibold">Verification State:</span>
+                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                        {(selectedCase.verificationState || 'NOT_REVIEWED').replace(/_/g, ' ')}
+                      </span>
+                    </div>
+
+                    {selectedCase.credibilityFeatureBreakdown && (
+                      <div className="border-t border-slate-200 pt-2 space-y-2">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Feature Scores
+                        </span>
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div>Data Quality: <strong>{selectedCase.credibilityFeatureBreakdown.dataQuality}%</strong></div>
+                          <div>Deduplication: <strong>{selectedCase.credibilityFeatureBreakdown.duplicateSimilarity}%</strong></div>
+                          <div>Geofence: <strong>{selectedCase.credibilityFeatureBreakdown.locationConsistency}%</strong></div>
+                          <div>Reporter Trust: <strong>{selectedCase.credibilityFeatureBreakdown.reporterHistory}%</strong></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedCase.anomalyFlags && selectedCase.anomalyFlags.length > 0 && (
+                      <div className="border-t border-slate-200 pt-2">
+                        <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider block mb-1">
+                          Flags & Outliers ({selectedCase.anomalyFlags.length})
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedCase.anomalyFlags.map((flag, idx) => (
+                            <span key={idx} className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded font-mono font-medium">
+                              {flag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-slate-200 flex justify-end">
+                      <button
+                        onClick={() => setIsCredibilityModalOpen(true)}
+                        className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Open Comprehensive Credibility & Audit Console
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -923,6 +1049,19 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* Credibility & Verification Modal */}
+      {selectedCase && (
+        <CredibilityBreakdownModal
+          caseItem={selectedCase}
+          currentUser={currentUser}
+          isOpen={isCredibilityModalOpen}
+          onClose={() => setIsCredibilityModalOpen(false)}
+          onCaseUpdated={updated => {
+            setSelectedCase(updated);
+          }}
+        />
       )}
     </div>
   );

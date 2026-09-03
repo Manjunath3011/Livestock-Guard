@@ -17,7 +17,10 @@ export const CaseStatusBadge: React.FC<CaseStatusBadgeProps> = ({ status, size =
     CONFIRMED: { bg: 'bg-rose-50 text-rose-800 border-rose-300 font-bold', text: 'text-rose-800', label: 'Confirmed Positive' },
     RULED_OUT: { bg: 'bg-slate-100 text-slate-700 border-slate-300', text: 'text-slate-700', label: 'Ruled Out (Negative)' },
     CONTAINMENT: { bg: 'bg-red-100 text-red-900 border-red-400 font-bold', text: 'text-red-900', label: 'Containment Zone' },
-    RESOLVED: { bg: 'bg-emerald-50 text-emerald-800 border-emerald-200', text: 'text-emerald-800', label: 'Resolved / Treated' }
+    RESOLVED: { bg: 'bg-emerald-50 text-emerald-800 border-emerald-200', text: 'text-emerald-800', label: 'Resolved / Treated' },
+    REJECTED: { bg: 'bg-rose-100 text-rose-900 border-rose-400', text: 'text-rose-900', label: 'Rejected / Invalid' },
+    CLOSED: { bg: 'bg-gray-100 text-gray-700 border-gray-300', text: 'text-gray-700', label: 'Closed' },
+    MONITORING: { bg: 'bg-sky-50 text-sky-800 border-sky-300', text: 'text-sky-800', label: 'Monitoring / Follow-up' }
   };
 
   const cfg = configs[status] || configs.NEW;

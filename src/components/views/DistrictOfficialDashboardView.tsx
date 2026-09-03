@@ -16,10 +16,13 @@ import {
   Layers,
   ChevronRight,
   TrendingUp,
-  FileText
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
 import { store } from '../../services/store';
 import { Case, Outbreak, Alert, Advisory, WeatherData, FieldVisit } from '../../types';
+import { CredibilityBadge } from '../common/CredibilityBadge';
+import { CredibilityBreakdownModal } from '../common/CredibilityBreakdownModal';
 
 interface DistrictOfficialDashboardViewProps {
   onNavigate: (module: string) => void;
@@ -34,6 +37,8 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
   const [fieldVisits, setFieldVisits] = useState<FieldVisit[]>([]);
   const [isAdvisoryModalOpen, setIsAdvisoryModalOpen] = useState(false);
   const [isOutbreakModalOpen, setIsOutbreakModalOpen] = useState(false);
+  const [selectedCaseForAudit, setSelectedCaseForAudit] = useState<Case | null>(null);
+  const [isCredibilityModalOpen, setIsCredibilityModalOpen] = useState(false);
 
   // New advisory state
   const [advisoryTitle, setAdvisoryTitle] = useState('');
@@ -340,6 +345,121 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
               </table>
             </div>
           </div>
+
+          {/* District Case Surveillance Credibility & Verification Console */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                  District Disease Surveillance Credibility & Verification Audit
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Data reliability triage, verification status tracking, and emergency override surveillance
+                </p>
+              </div>
+              <button
+                onClick={() => onNavigate('cases')}
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
+              >
+                View Full Case Register <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Credibility Overview Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Avg Credibility</span>
+                <span className="text-xl font-black text-slate-900 dark:text-white mt-0.5 block">
+                  {Math.round(cases.reduce((acc, c) => acc + (c.credibilityScore ?? 75), 0) / (cases.length || 1))}%
+                </span>
+                <span className="text-[10px] text-emerald-600 font-medium">District Trust Baseline</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800">
+                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block">Trusted Reports</span>
+                <span className="text-xl font-black text-emerald-700 dark:text-emerald-300 mt-0.5 block">
+                  {cases.filter(c => (c.credibilityScore ?? 75) >= 80).length}
+                </span>
+                <span className="text-[10px] text-emerald-600">Score &ge; 80 / High Integrity</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider block">Vet / Lab Verified</span>
+                <span className="text-xl font-black text-blue-700 dark:text-blue-300 mt-0.5 block">
+                  {cases.filter(c => c.verificationState === 'VET_VERIFIED' || c.verificationState === 'LAB_CONFIRMED').length}
+                </span>
+                <span className="text-[10px] text-blue-600">Clinically Confirmed</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider block">Urgent Overrides</span>
+                <span className="text-xl font-black text-amber-700 dark:text-amber-300 mt-0.5 block">
+                  {cases.filter(c => c.isCriticalUrgentVerification).length}
+                </span>
+                <span className="text-[10px] text-amber-600 font-medium">Zero Suppression Active</span>
+              </div>
+            </div>
+
+            {/* Case List for District Verification & Audit */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-semibold border-y border-slate-200 dark:border-slate-700">
+                  <tr>
+                    <th className="py-2.5 px-3">Case ID</th>
+                    <th className="py-2.5 px-3">Village / Block</th>
+                    <th className="py-2.5 px-3">Suspected Disease</th>
+                    <th className="py-2.5 px-3">Credibility & Tiers</th>
+                    <th className="py-2.5 px-3">Verification State</th>
+                    <th className="py-2.5 px-3 text-right">Audit Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {cases.slice(0, 6).map(c => (
+                    <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                          {c.caseNumber}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{c.villageName}</span>
+                        <span className="text-slate-400 text-[10px] block">{c.districtName}</span>
+                      </td>
+                      <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-300">
+                        {c.suspectedDiseases?.[0]?.diseaseName || 'Pending'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <CredibilityBadge
+                          score={c.credibilityScore}
+                          tier={c.credibilityTier}
+                          verificationState={c.verificationState}
+                          isUrgent={c.isCriticalUrgentVerification}
+                          size="sm"
+                        />
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-bold text-slate-700 dark:text-slate-300 text-[11px]">
+                          {(c.verificationState || 'NOT_REVIEWED').replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          onClick={() => {
+                            setSelectedCaseForAudit(c);
+                            setIsCredibilityModalOpen(true);
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 transition cursor-pointer"
+                        >
+                          Audit Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         {/* Right Col: Active Advisories & Quick Controls */}
@@ -592,6 +712,23 @@ export const DistrictOfficialDashboardView: React.FC<DistrictOfficialDashboardVi
             </form>
           </div>
         </div>
+      )}
+
+      {/* Credibility Breakdown & Verification Audit Modal */}
+      {selectedCaseForAudit && (
+        <CredibilityBreakdownModal
+          caseItem={selectedCaseForAudit}
+          currentUser={currentUser}
+          isOpen={isCredibilityModalOpen}
+          onClose={() => {
+            setIsCredibilityModalOpen(false);
+            setSelectedCaseForAudit(null);
+          }}
+          onCaseUpdated={updated => {
+            setSelectedCaseForAudit(updated);
+            refreshData();
+          }}
+        />
       )}
     </div>
   );

@@ -43,6 +43,15 @@ import {
 import { assessLivestockRisk, DEFAULT_CONFIG } from './riskEngine';
 import { HybridRiskEngine } from './HybridRiskEngine';
 import { trainingCandidateQueueService } from './TrainingCandidateQueue';
+import { ReportCredibilityEngine } from './ReportCredibilityEngine';
+import {
+  CredibilityTier,
+  CredibilityStatus,
+  VerificationState,
+  VerificationEvidenceItem,
+  CredibilityAuditRecord,
+  CredibilityOverviewMetrics
+} from '../types';
 
 const STORAGE_KEYS = {
   CURRENT_USER: 'lg_current_user',
@@ -170,7 +179,19 @@ class LivestockGuardStore {
     this.herds = loadFromStorage(STORAGE_KEYS.HERDS, SEED_HERDS) || SEED_HERDS;
     this.animals = loadFromStorage(STORAGE_KEYS.ANIMALS, SEED_ANIMALS) || SEED_ANIMALS;
     this.temporaryAnimals = loadFromStorage(STORAGE_KEYS.TEMPORARY_ANIMALS, SEED_TEMPORARY_ANIMALS) || SEED_TEMPORARY_ANIMALS;
-    this.cases = loadFromStorage(STORAGE_KEYS.CASES, SEED_CASES) || SEED_CASES;
+    const loadedCases = loadFromStorage<Case[]>(STORAGE_KEYS.CASES, SEED_CASES) || SEED_CASES;
+    this.cases = loadedCases.map(c => {
+      // Ensure backward compatibility: if a case lacks credibility fields, supply sensible defaults
+      if (c.credibilityScore === undefined) {
+        const isConfirmed = c.status === 'CONFIRMED';
+        const isRuledOut = c.status === 'RULED_OUT';
+        c.credibilityScore = isConfirmed ? 95 : isRuledOut ? 30 : 75;
+        c.credibilityTier = isConfirmed ? 'TRUSTED' : isRuledOut ? 'LOW_CREDIBILITY' : 'REVIEW';
+        c.credibilityStatus = isConfirmed ? 'VERIFIED' : isRuledOut ? 'REJECTED' : 'PENDING';
+        c.verificationState = isConfirmed ? 'LAB_CONFIRMED' : 'NOT_REVIEWED';
+      }
+      return c;
+    });
     this.outbreaks = loadFromStorage(STORAGE_KEYS.OUTBREAKS, SEED_OUTBREAKS) || SEED_OUTBREAKS;
     this.labSamples = loadFromStorage(STORAGE_KEYS.LAB_SAMPLES, SEED_LAB_SAMPLES) || SEED_LAB_SAMPLES;
     this.vaccinations = loadFromStorage(STORAGE_KEYS.VACCINATIONS, SEED_VACCINATIONS) || SEED_VACCINATIONS;
@@ -858,7 +879,20 @@ class LivestockGuardStore {
     const timestamp = new Date().toISOString();
     const caseNum = `CAS-${(caseData.stateId || 'IN').toUpperCase().slice(-2)}-${(caseData.districtName || 'DIS').toUpperCase().slice(0, 3)}-2026-${String((this.cases || []).length + 1).padStart(4, '0')}`;
 
-    // Compute automatic risk assessment (Rule-Based Engine)
+    // Compute explainable report credibility and validation
+    const credAssessment = ReportCredibilityEngine.assessReportCredibility({
+      caseData: {
+        ...caseData,
+        submittedAt: timestamp
+      },
+      existingCases: this.cases,
+      animals: this.animals,
+      herds: this.herds,
+      currentUser: this.currentUser,
+      isOfflineSubmission: this.isSimulatedOffline
+    });
+
+    // Compute automatic risk assessment (Rule-Based Engine) - Credibility Aware
     const riskResult = assessLivestockRisk({
       species: caseData.species,
       symptoms: caseData.symptoms,
@@ -869,7 +903,10 @@ class LivestockGuardStore {
       vaccinationStatus: caseData.vaccinationStatusAtReport,
       existingCases: this.cases,
       activeOutbreaks: this.outbreaks,
-      config: this.systemConfig
+      config: this.systemConfig,
+      credibilityScore: credAssessment.credibilityScore,
+      credibilityTier: credAssessment.credibilityTier,
+      credibilityStatus: credAssessment.credibilityStatus
     });
 
     // Compute Hybrid Decision Support Assessment (Rule + ML + Knowledge Base)
@@ -900,17 +937,57 @@ class LivestockGuardStore {
       ? ` Linked to previous case ${caseData.historicalCaseLink.historicalCaseNumber} (${caseData.historicalCaseLink.relationshipType.replace(/_/g, ' ')}).`
       : '';
 
+    // If critical urgent safety override triggered (e.g. mortality, zoonotic, sudden surge)
+    let finalPriority = caseData.priority;
+    if (credAssessment.isCriticalUrgentVerification && finalPriority === 'ROUTINE') {
+      finalPriority = 'URGENT';
+    }
+
     const newCase: Case = {
       ...caseData,
       id: `cas_${Date.now()}`,
       caseNumber: caseNum,
       riskScore: hybridResult.finalRiskScore,
       riskLevel: hybridResult.finalRiskLevel,
+      priority: finalPriority,
       suspectedDiseases: riskResult.suspectedDiseases,
       hybridAssessment: hybridResult,
       mlPrediction: hybridResult.mlScreening,
       createdAt: timestamp,
       updatedAt: timestamp,
+      // Credibility Layer Fields
+      credibilityScore: credAssessment.credibilityScore,
+      credibilityTier: credAssessment.credibilityTier,
+      credibilityStatus: credAssessment.credibilityStatus,
+      verificationState: credAssessment.verificationState,
+      credibilityReasons: credAssessment.credibilityReasons,
+      anomalyFlags: credAssessment.anomalyFlags,
+      locationMatchScore: credAssessment.locationMatchScore,
+      reporterTrustScore: credAssessment.reporterTrustScore,
+      animalHistoryConsistencyScore: credAssessment.animalHistoryConsistencyScore,
+      credibilityFeatureBreakdown: credAssessment.credibilityFeatureBreakdown,
+      mlFeatureVector: credAssessment.mlFeatureVector,
+      isCriticalUrgentVerification: credAssessment.isCriticalUrgentVerification,
+      duplicateOfCaseId: credAssessment.duplicateOfCaseId,
+      relatedCaseIds: credAssessment.relatedCaseIds,
+      eventCorrelationId: credAssessment.eventCorrelationId,
+      sourceType: (this.currentUser?.role as any) || 'FARMER',
+      submittedAt: timestamp,
+      deviceTimestamp: timestamp,
+      provisionalOfflineScore: this.isSimulatedOffline,
+      credibilityAuditTrail: [
+        {
+          id: `aud_cred_${Date.now()}`,
+          action: 'INITIAL_ASSESSMENT',
+          previousStatus: 'NONE',
+          newStatus: credAssessment.credibilityStatus,
+          actorId: this.currentUser?.id || 'usr_unknown',
+          actorName: this.currentUser?.name || 'User',
+          actorRole: this.currentUser?.role || 'FARMER',
+          timestamp,
+          reason: `Automated baseline assessment: ${credAssessment.credibilityScore}/100 (${credAssessment.credibilityTier}). ${credAssessment.anomalyFlags.length > 0 ? `Anomalies: ${credAssessment.anomalyFlags.join(', ')}.` : 'No data anomalies detected.'}`
+        }
+      ],
       auditTrail: [
         {
           id: `aud_${Date.now()}`,
@@ -919,7 +996,7 @@ class LivestockGuardStore {
           actorName: this.currentUser?.name || 'User',
           actorRole: this.currentUser?.role || 'FARMER',
           action: 'CASE_CREATED',
-          details: `Reported ${(caseData.symptoms || []).length} symptom(s) with ${hybridResult.finalRiskLevel} screening risk (ML Likelihood: ${Math.round(((hybridResult.mlScreening?.topPrediction?.probability) || 0.5) * 100)}%).${isUntagged ? ` Registered for untagged animal (${caseData.temporaryTag || 'Temporary ID generated'}).` : ''}${historyDetail}`
+          details: `Reported ${(caseData.symptoms || []).length} symptom(s) with ${hybridResult.finalRiskLevel} screening risk (ML Likelihood: ${Math.round(((hybridResult.mlScreening?.topPrediction?.probability) || 0.5) * 100)}%). Credibility Score: ${credAssessment.credibilityScore}/100 [${credAssessment.credibilityTier}].${isUntagged ? ` Registered for untagged animal (${caseData.temporaryTag || 'Temporary ID generated'}).` : ''}${historyDetail}`
         }
       ]
     };
@@ -947,6 +1024,20 @@ class LivestockGuardStore {
         anm.lastCheckedAt = timestamp.split('T')[0];
         saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
       }
+    }
+
+    // Critical Alert for urgent verification override
+    if (newCase.isCriticalUrgentVerification) {
+      this.createAlert({
+        title: `URGENT VERIFICATION: ${newCase.caseNumber} (${newCase.suspectedDiseases[0]?.diseaseName || 'Disease'})`,
+        message: `${newCase.villageName}, ${newCase.districtName}: ${credAssessment.urgentReason || 'High consequence livestock report flagged for urgent in-person verification.'}`,
+        priority: 'CRITICAL',
+        category: 'CASE_ESCALATION',
+        targetRoles: ['VETERINARIAN', 'FIELD_WORKER', 'DISTRICT_OFFICIAL'],
+        districtName: newCase.districtName,
+        villageName: newCase.villageName,
+        caseId: newCase.id
+      });
     }
 
     // Auto-generate Alert if High or Critical
@@ -1163,6 +1254,24 @@ class LivestockGuardStore {
           console.warn('Could not enqueue lab-confirmed training candidate', err);
         }
 
+        // Connect with Credibility & Verification engine
+        try {
+          this.verifyCase({
+            caseId: c.id,
+            action: 'LAB_CONFIRM',
+            notes: `Gold-standard diagnostic confirmation: ${sample.testRequested} returned positive for ${sample.suspectedDiseaseName}. Lab: ${sample.laboratoryName}. Details: ${resultDetails}`,
+            evidence: {
+              type: 'LAB_SAMPLE',
+              reference: sample.sampleCode,
+              description: `Laboratory Test Certificate (${sample.testRequested}): Positive`,
+              addedAt: timestamp,
+              addedBy: this.currentUser.name
+            }
+          });
+        } catch (err) {
+          console.warn('Could not trigger verification update for lab confirmation', err);
+        }
+
         this.createAlert({
           title: `LAB CONFIRMED: ${sample.suspectedDiseaseName} in ${c.villageName}`,
           message: `Sample ${sample.sampleCode} positive. Immediate biosecurity and ring containment required.`,
@@ -1175,6 +1284,16 @@ class LivestockGuardStore {
         });
       } else if (result === 'NEGATIVE') {
         this.updateCaseStatus(c.id, 'RULED_OUT', `Laboratory test (${sample.testRequested}) ruled out ${sample.suspectedDiseaseName}.`);
+        try {
+          this.verifyCase({
+            caseId: c.id,
+            action: 'DISMISS',
+            notes: `Diagnostic test (${sample.testRequested}) ruled out ${sample.suspectedDiseaseName}. Remarks: ${remarks || 'Negative findings'}`,
+            rejectionReason: `Negative laboratory findings (${sample.testRequested})`
+          });
+        } catch (err) {
+          console.warn('Could not trigger verification update for negative lab result', err);
+        }
       }
     }
 
@@ -1433,9 +1552,52 @@ class LivestockGuardStore {
     this.isSimulatedOffline = false;
     saveToStorage(STORAGE_KEYS.IS_OFFLINE, false);
 
+    // Authoritative Server Re-Evaluation for any offline provisional reports
+    let reAssessedCount = 0;
+    this.cases.forEach(c => {
+      if (c.provisionalOfflineScore) {
+        const authoritativeResult = ReportCredibilityEngine.assessReportCredibility({
+          caseData: c,
+          existingCases: this.cases,
+          animals: this.animals,
+          herds: this.herds,
+          currentUser: this.currentUser,
+          isOfflineSubmission: false
+        });
+
+        c.credibilityScore = authoritativeResult.credibilityScore;
+        c.credibilityTier = authoritativeResult.credibilityTier;
+        c.credibilityStatus = authoritativeResult.credibilityStatus;
+        c.credibilityReasons = authoritativeResult.credibilityReasons;
+        c.anomalyFlags = authoritativeResult.anomalyFlags;
+        c.credibilityFeatureBreakdown = authoritativeResult.credibilityFeatureBreakdown;
+        c.mlFeatureVector = authoritativeResult.mlFeatureVector;
+        c.provisionalOfflineScore = false;
+
+        if (!c.credibilityAuditTrail) c.credibilityAuditTrail = [];
+        c.credibilityAuditTrail.unshift({
+          id: `aud_sync_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          action: 'OFFLINE_SYNC_REASSESSED',
+          previousStatus: 'PROVISIONAL_OFFLINE',
+          newStatus: c.credibilityStatus || 'PENDING',
+          actorId: 'sys_central_server',
+          actorName: 'Central Surveillance Sync Engine',
+          actorRole: 'SYSTEM_ADMIN',
+          timestamp: new Date().toISOString(),
+          reason: 'Authoritative server credibility re-evaluated from provisional score upon network restoration.'
+        });
+
+        reAssessedCount++;
+      }
+    });
+
+    if (reAssessedCount > 0) {
+      saveToStorage(STORAGE_KEYS.CASES, this.cases);
+    }
+
     this.createAlert({
       title: 'Synchronization Complete',
-      message: `Successfully synced ${count} pending offline record(s) with Central Surveillance Database.`,
+      message: `Successfully synced ${count} pending offline record(s) with Central Surveillance Database.${reAssessedCount > 0 ? ` ${reAssessedCount} provisional report(s) authoritatively re-evaluated.` : ''}`,
       priority: 'INFO',
       category: 'CASE_ESCALATION',
       targetRoles: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
@@ -1443,6 +1605,106 @@ class LivestockGuardStore {
 
     this.notify();
     return { success: true, count };
+  }
+
+  // ==========================================
+  // Credibility & Verification Workflow Engine
+  // ==========================================
+  public verifyCase(params: {
+    caseId: string;
+    action: 'FIELD_VERIFY' | 'VET_VERIFY' | 'LAB_CONFIRM' | 'REQUEST_INFO' | 'REJECT' | 'DISMISS';
+    notes: string;
+    evidence?: VerificationEvidenceItem;
+    rejectionReason?: string;
+  }): Case | undefined {
+    const c = this.cases.find(x => x.id === params.caseId);
+    if (!c) return undefined;
+
+    const result = ReportCredibilityEngine.verifyCase({
+      caseRecord: c,
+      action: params.action,
+      actor: this.currentUser,
+      notes: params.notes,
+      evidence: params.evidence,
+      rejectionReason: params.rejectionReason
+    });
+
+    saveToStorage(STORAGE_KEYS.CASES, this.cases);
+
+    // Create notification alert for verification update
+    const actionLabel = params.action.replace('_', ' ').toLowerCase();
+    this.createAlert({
+      title: `Case ${c.caseNumber} ${actionLabel}`,
+      message: `${this.currentUser.name} (${this.currentUser.role}): ${params.notes || params.rejectionReason || 'Case verification updated.'}`,
+      priority: params.action === 'REJECT' ? 'HIGH' : params.action === 'LAB_CONFIRM' ? 'CRITICAL' : 'INFO',
+      category: 'CASE_ESCALATION',
+      targetRoles: ['VETERINARIAN', 'FIELD_WORKER', 'DISTRICT_OFFICIAL', 'FARMER'],
+      districtName: c.districtName,
+      villageName: c.villageName,
+      caseId: c.id
+    });
+
+    this.notify();
+    return result.updatedCase;
+  }
+
+  public rejectCase(caseId: string, rejectionReason: string, notes?: string): Case | undefined {
+    return this.verifyCase({
+      caseId,
+      action: 'REJECT',
+      notes: notes || rejectionReason,
+      rejectionReason
+    });
+  }
+
+  public requestMoreInfoForCase(caseId: string, notes: string): Case | undefined {
+    return this.verifyCase({
+      caseId,
+      action: 'REQUEST_INFO',
+      notes
+    });
+  }
+
+  public escalateCaseForVerification(caseId: string, targetRole: Role, priority: 'HIGH' | 'EMERGENCY', reason: string): Case | undefined {
+    const c = this.cases.find(x => x.id === caseId);
+    if (!c) return undefined;
+
+    c.priority = priority === 'EMERGENCY' ? 'EMERGENCY' : 'URGENT';
+    c.isCriticalUrgentVerification = true;
+    c.updatedAt = new Date().toISOString();
+
+    if (!c.credibilityAuditTrail) c.credibilityAuditTrail = [];
+    c.credibilityAuditTrail.unshift({
+      id: `aud_esc_${Date.now()}`,
+      action: 'STATUS_CHANGED',
+      previousStatus: c.credibilityStatus || 'PENDING',
+      newStatus: 'NEEDS_VERIFICATION',
+      actorId: this.currentUser.id,
+      actorName: this.currentUser.name,
+      actorRole: this.currentUser.role,
+      timestamp: new Date().toISOString(),
+      reason: `Escalated for immediate verification to ${targetRole}: ${reason}`
+    });
+
+    saveToStorage(STORAGE_KEYS.CASES, this.cases);
+
+    this.createAlert({
+      title: `ESCALATED FOR VERIFICATION: Case ${c.caseNumber}`,
+      message: `Assigned to ${targetRole} for verification priority ${priority}: ${reason}`,
+      priority: priority === 'EMERGENCY' ? 'CRITICAL' : 'HIGH',
+      category: 'CASE_ESCALATION',
+      targetRoles: [targetRole, 'DISTRICT_OFFICIAL', 'STATE_ADMIN'],
+      districtName: c.districtName,
+      villageName: c.villageName,
+      caseId: c.id
+    });
+
+    this.notify();
+    return c;
+  }
+
+  public getCredibilityOverviewMetrics(): CredibilityOverviewMetrics {
+    return ReportCredibilityEngine.computeOverviewMetrics(this.cases);
   }
 
   // Reset database to initial seed data

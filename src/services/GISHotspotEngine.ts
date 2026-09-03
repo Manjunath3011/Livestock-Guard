@@ -416,6 +416,24 @@ export class GISHotspotEngine {
         Array.from(cl.speciesSet)
       );
 
+      // Calculate credibility metrics for cluster
+      let clusterVerified = 0;
+      let clusterNeedsVerification = 0;
+      let clusterLowCredibility = 0;
+      let clusterRejected = 0;
+
+      cl.cases.forEach(c => {
+        if (c.credibilityStatus === 'REJECTED' || c.status === 'REJECTED') {
+          clusterRejected++;
+        } else if (c.credibilityStatus === 'VERIFIED' || c.verificationState === 'FIELD_VERIFIED' || c.verificationState === 'VET_VERIFIED' || c.verificationState === 'LAB_CONFIRMED') {
+          clusterVerified++;
+        } else if (c.credibilityTier === 'LOW_CREDIBILITY' || (c.credibilityScore && c.credibilityScore < 50)) {
+          clusterLowCredibility++;
+        } else {
+          clusterNeedsVerification++;
+        }
+      });
+
       results.push({
         id: key,
         name: clusterName,
@@ -446,7 +464,15 @@ export class GISHotspotEngine {
         caseIds: cl.cases.map(c => c.id),
         latestReportDate,
         firstReportDate,
-        recommendedActions
+        recommendedActions,
+        reportCredibilityCounts: {
+          totalReports: totalCases,
+          verifiedReports: clusterVerified,
+          needsVerificationReports: clusterNeedsVerification,
+          lowCredibilityReports: clusterLowCredibility,
+          rejectedReports: clusterRejected,
+          credibilityAdjustedRiskScore: riskScore
+        }
       });
     });
 
@@ -482,14 +508,44 @@ export class GISHotspotEngine {
 
     const factors: HotspotFactorItem[] = [];
 
-    // Factor A: Case Density (max 20 pts)
-    let caseDensityScore = Math.min(20, caseCount * 5);
+    // Factor A: Case Density (max 20 pts) - Credibility Weighted
+    let effectiveCaseCount = 0;
+    let verifiedCount = 0;
+    let lowCredibilityCount = 0;
+    let rejectedCount = 0;
+    let needsVerificationCount = 0;
+
+    cases.forEach(c => {
+      if (c.credibilityStatus === 'REJECTED' || c.status === 'REJECTED') {
+        rejectedCount++;
+      } else if (c.verificationState === 'LAB_CONFIRMED' || c.status === 'CONFIRMED') {
+        effectiveCaseCount += 1.0;
+        verifiedCount++;
+      } else if (c.verificationState === 'VET_VERIFIED') {
+        effectiveCaseCount += 0.95;
+        verifiedCount++;
+      } else if (c.verificationState === 'FIELD_VERIFIED') {
+        effectiveCaseCount += 0.85;
+        verifiedCount++;
+      } else if (c.credibilityTier === 'TRUSTED' || (c.credibilityScore && c.credibilityScore >= 80)) {
+        effectiveCaseCount += 0.70;
+        needsVerificationCount++;
+      } else if (c.credibilityTier === 'LOW_CREDIBILITY' || (c.credibilityScore && c.credibilityScore < 50)) {
+        effectiveCaseCount += 0.15;
+        lowCredibilityCount++;
+      } else {
+        effectiveCaseCount += 0.40;
+        needsVerificationCount++;
+      }
+    });
+
+    let caseDensityScore = Math.min(20, Math.round(effectiveCaseCount * 5));
     factors.push({
       id: 'f_case_density',
-      label: 'Reported Case Density',
+      label: 'Reported Case Density (Credibility-Adjusted)',
       score: caseDensityScore,
       maxScore: 20,
-      description: `${caseCount} clinical reports within geographic cluster zone.`
+      description: `${caseCount} raw report(s) (${verifiedCount} verified, ${lowCredibilityCount} low-credibility, ${rejectedCount} rejected). Effective density: ${effectiveCaseCount.toFixed(1)}.`
     });
 
     // Factor B: Affected Animals & Mortality Impact (max 15 pts)

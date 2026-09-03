@@ -1,3 +1,16 @@
+import {
+  CredibilityTier,
+  CredibilityStatus,
+  VerificationState,
+  VerificationEvidenceItem,
+  CredibilityAuditRecord,
+  SourceType,
+  ReportCredibilityFeatureBreakdown,
+  ReportMLFeatureVector
+} from './credibility';
+
+export * from './credibility';
+
 export type Role =
   | 'FARMER'
   | 'FIELD_WORKER'
@@ -38,7 +51,12 @@ export type CaseStatus =
   | 'CONFIRMED'
   | 'RULED_OUT'
   | 'CONTAINMENT'
-  | 'RESOLVED';
+  | 'RESOLVED'
+  | 'REJECTED'
+  | 'CLOSED'
+  | 'MONITORING';
+
+export * from './credibility';
 
 export type SampleStatus =
   | 'REQUESTED'
@@ -631,6 +649,37 @@ export interface Case {
     rainfallMm: number;
     condition: string;
   };
+
+  // Report Credibility & Verification Layer
+  credibilityScore?: number; // 0 - 100
+  credibilityTier?: CredibilityTier;
+  credibilityStatus?: CredibilityStatus;
+  credibilityReasons?: string[];
+  anomalyFlags?: string[];
+  verificationState?: VerificationState;
+  verifiedBy?: string;
+  verifiedAt?: string;
+  verificationNotes?: string;
+  verificationEvidence?: VerificationEvidenceItem[];
+  credibilityAuditTrail?: CredibilityAuditRecord[];
+  duplicateOfCaseId?: string;
+  relatedCaseIds?: string[];
+  eventCorrelationId?: string;
+  sourceType?: SourceType;
+  submittedAt?: string;
+  deviceTimestamp?: string;
+  gpsAccuracy?: number;
+  locationMatchScore?: number;
+  reporterTrustScore?: number;
+  animalHistoryConsistencyScore?: number;
+  credibilityFeatureBreakdown?: ReportCredibilityFeatureBreakdown;
+  mlFeatureVector?: ReportMLFeatureVector;
+  isCriticalUrgentVerification?: boolean;
+  urgentReason?: string;
+  rejectionReason?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  provisionalOfflineScore?: boolean;
 }
 
 export interface Vaccine {

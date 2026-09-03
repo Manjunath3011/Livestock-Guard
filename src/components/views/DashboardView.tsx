@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { User, Case, Outbreak, Animal, MortalityReport, Alert, WeatherData } from '../../types';
 import { RiskBadge } from '../common/RiskBadge';
 import { CaseStatusBadge } from '../common/CaseStatusBadge';
+import { CredibilityBadge } from '../common/CredibilityBadge';
 import {
   PawPrint,
   AlertTriangle,
@@ -332,7 +333,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                  <CredibilityBadge
+                    score={c.credibilityScore}
+                    tier={c.credibilityTier}
+                    verificationState={c.verificationState}
+                    isUrgent={c.isCriticalUrgentVerification}
+                    size="sm"
+                  />
                   <RiskBadge level={c.riskLevel} score={c.riskScore} size="sm" />
                   <CaseStatusBadge status={c.status} size="sm" />
                 </div>

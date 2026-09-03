@@ -76,6 +76,14 @@ export interface HotspotCluster {
     fieldWorkerGuidance: string[];
     biosecurityDirectives: string[];
   };
+  reportCredibilityCounts?: {
+    totalReports: number;
+    verifiedReports: number;
+    needsVerificationReports: number;
+    lowCredibilityReports: number;
+    rejectedReports: number;
+    credibilityAdjustedRiskScore: number;
+  };
   isSimulatedDemo?: boolean;
   simulatedScenarioName?: string;
 }

@@ -66,6 +66,9 @@ export function assessLivestockRisk(params: {
     rainfallMm: number;
   };
   config?: SystemConfig;
+  credibilityScore?: number;
+  credibilityTier?: 'TRUSTED' | 'REVIEW' | 'LOW_CREDIBILITY';
+  credibilityStatus?: 'PENDING' | 'NEEDS_VERIFICATION' | 'VERIFIED' | 'REJECTED' | 'DISMISSED';
 }): RiskCalculationResult {
   const cfg = params.config || DEFAULT_CONFIG;
   const totalHerd = Math.max(params.totalAnimalsInHerd || params.affectedCount + params.deadCount || 1, 1);
@@ -189,18 +192,30 @@ export function assessLivestockRisk(params: {
   const topMatchScore = topSuspected.length > 0 ? topSuspected[0].screeningScore : 10;
   const primaryMatch = topSuspected[0];
 
-  // 2. Nearby Cases & Cluster Detection
+  // 2. Nearby Cases & Cluster Detection (Credibility-Adjusted)
   let nearbyCasesCount = 0;
   let nearbyHighRiskCount = 0;
   let inActiveOutbreakZone = false;
 
   if (params.existingCases) {
     for (const c of params.existingCases) {
+      // Exclude rejected reports from contributing to nearby disease pressure
+      if (c.credibilityStatus === 'REJECTED' || c.status === 'REJECTED') {
+        continue;
+      }
+
       const dist = calculateDistanceKm(params.latitude, params.longitude, c.latitude, c.longitude);
       if (dist <= cfg.clusterThresholds.radiusKm) {
-        nearbyCasesCount++;
+        // Credibility weighting: Verified (1.0), Trusted/Review (0.7), Low Credibility (0.2)
+        const credWeight = (c.verificationState === 'FIELD_VERIFIED' || c.verificationState === 'VET_VERIFIED' || c.verificationState === 'LAB_CONFIRMED' || c.credibilityStatus === 'VERIFIED')
+          ? 1.0
+          : (c.credibilityTier === 'LOW_CREDIBILITY' || (c.credibilityScore && c.credibilityScore < 50))
+          ? 0.25
+          : 0.70;
+
+        nearbyCasesCount += credWeight;
         if (c.riskLevel === 'HIGH' || c.riskLevel === 'CRITICAL') {
-          nearbyHighRiskCount++;
+          nearbyHighRiskCount += credWeight;
         }
       }
     }
@@ -270,11 +285,17 @@ export function assessLivestockRisk(params: {
 
   const clampedScore = Math.min(100, Math.max(5, totalScore));
 
+  // Moderation for low credibility reports without sudden death
+  let adjustedScore = clampedScore;
+  if (params.credibilityTier === 'LOW_CREDIBILITY' && dead === 0 && !hasSuddenDeath) {
+    adjustedScore = Math.round(clampedScore * 0.85);
+  }
+
   // Determine Risk Level
   let level: RiskLevel = 'LOW';
-  if (clampedScore >= cfg.riskLevelCutoffs.critical) level = 'CRITICAL';
-  else if (clampedScore >= cfg.riskLevelCutoffs.high) level = 'HIGH';
-  else if (clampedScore >= cfg.riskLevelCutoffs.moderate) level = 'MODERATE';
+  if (adjustedScore >= cfg.riskLevelCutoffs.critical) level = 'CRITICAL';
+  else if (adjustedScore >= cfg.riskLevelCutoffs.high) level = 'HIGH';
+  else if (adjustedScore >= cfg.riskLevelCutoffs.moderate) level = 'MODERATE';
 
   // Contributing Factors
   const contributingFactors: string[] = [];
