@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Animal, Species, HealthStatus, Farm, User, Case, VaccinationRecord, TreatmentRecord, LabSample } from '../../types';
+import { Animal, Species, HealthStatus, Farm, User, Case, VaccinationRecord, TreatmentRecord, LabSample, AnimalPhoto } from '../../types';
 import { store } from '../../services/store';
 import { Modal } from '../common/Modal';
 import { RiskBadge } from '../common/RiskBadge';
@@ -8,6 +8,7 @@ import { IndiaLocationPicker } from '../common/IndiaLocationPicker';
 import { NormalizedLocationSelection } from '../../types/location';
 import { indiaLocationService } from '../../services/IndiaLocationService';
 import { useTranslation } from '../../i18n/translations';
+import { PhotoEvidenceSection } from '../common/PhotoEvidenceSection';
 import {
   PawPrint,
   PlusCircle,
@@ -29,7 +30,8 @@ import {
   Activity,
   ChevronRight,
   FileText,
-  Edit3
+  Edit3,
+  Camera
 } from 'lucide-react';
 
 interface AnimalsViewProps {
@@ -51,7 +53,7 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [selectedAnimalDetail, setSelectedAnimalDetail] = useState<Animal | null>(null);
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'SYMPTOMS' | 'VACCINATIONS' | 'TREATMENTS' | 'LABS' | 'TIMELINE'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'SYMPTOMS' | 'PHOTOS' | 'VACCINATIONS' | 'TREATMENTS' | 'LABS' | 'TIMELINE'>('OVERVIEW');
 
   // New Animal Form State
   const [newTag, setNewTag] = useState('');
@@ -64,6 +66,7 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
   const [newFarmId, setNewFarmId] = useState<string>(farms?.[0]?.id || 'farm_01');
   const [isCustomLocationOpen, setIsCustomLocationOpen] = useState(false);
   const [customLocation, setCustomLocation] = useState<NormalizedLocationSelection | null>(null);
+  const [registrationPhotos, setRegistrationPhotos] = useState<AnimalPhoto[]>([]);
 
   // Context store queries for selected animal
   const cases = store.getCases() || [];
@@ -124,12 +127,14 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
       blockId: loc?.subDistrictId || farmObj?.blockId || 'sd_in_mh_pune_baramati',
       villageId: loc?.villageId || farmObj?.villageId || 'vl_in_mh_pune_baramati_malegaon_bk',
       latitude: loc?.coordinates?.latitude || farmObj?.latitude || 18.1524,
-      longitude: loc?.coordinates?.longitude || farmObj?.longitude || 74.5768
+      longitude: loc?.coordinates?.longitude || farmObj?.longitude || 74.5768,
+      photos: registrationPhotos
     });
 
     setIsRegisterModalOpen(false);
     setNewTag('');
     setNewName('');
+    setRegistrationPhotos([]);
     setIsCustomLocationOpen(false);
     setCustomLocation(null);
   };
@@ -171,6 +176,17 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
     if (!selectedAnimalDetail) return [];
     return labSamples.filter(l => l.animalId === selectedAnimalDetail.id || l.animalTag === selectedAnimalDetail.tagNumber);
   }, [selectedAnimalDetail, labSamples]);
+
+  const allAnimalPhotos = useMemo(() => {
+    if (!selectedAnimalDetail) return [];
+    const directPhotos = selectedAnimalDetail.photos || [];
+    const casePhotos = animalCases.flatMap(c => c.photos || []);
+    const photoMap = new Map<string, AnimalPhoto>();
+    [...directPhotos, ...casePhotos].forEach(p => {
+      if (p.id) photoMap.set(p.id, p);
+    });
+    return Array.from(photoMap.values());
+  }, [selectedAnimalDetail, animalCases]);
 
   return (
     <div className="space-y-6">
@@ -476,6 +492,17 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
             )}
           </div>
 
+          {/* Animal Identification Photo Evidence (Optional) */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+            <PhotoEvidenceSection
+              photos={registrationPhotos}
+              onChange={setRegistrationPhotos}
+              currentUserRole={currentUser.role}
+              animalId={newTag || 'anm_new'}
+              maxPhotos={3}
+            />
+          </div>
+
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
             <button
               type="button"
@@ -535,6 +562,7 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
               {[
                 { id: 'OVERVIEW', label: 'Overview', icon: PawPrint },
                 { id: 'SYMPTOMS', label: 'Clinical History', icon: Stethoscope, count: animalCases.length },
+                { id: 'PHOTOS', label: 'Photo Evidence', icon: Camera, count: allAnimalPhotos.length },
                 { id: 'VACCINATIONS', label: 'Vaccines', icon: Syringe, count: animalVaccines.length },
                 { id: 'TREATMENTS', label: 'Treatments', icon: Pill, count: animalTreatments.length },
                 { id: 'LABS', label: 'Lab Tests', icon: FlaskConical, count: animalLabs.length },
@@ -622,6 +650,31 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
                     </div>
                   ))
                 )}
+              </div>
+            )}
+
+            {/* Tab: Photo Evidence & Verification */}
+            {activeTab === 'PHOTOS' && (
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <PhotoEvidenceSection
+                    photos={allAnimalPhotos}
+                    onChange={(updatedPhotos) => {
+                      if (selectedAnimalDetail) {
+                        // Persist any new or updated photo to this animal
+                        const currentCount = (selectedAnimalDetail.photos || []).length;
+                        if (updatedPhotos.length > currentCount) {
+                          const latest = updatedPhotos[updatedPhotos.length - 1];
+                          store.addPhotoToAnimal(selectedAnimalDetail.id, latest);
+                        }
+                      }
+                    }}
+                    allowVetReview={currentUser.role === 'VETERINARIAN' || currentUser.role === 'FIELD_WORKER' || currentUser.role === 'STATE_ADMIN'}
+                    currentUserRole={currentUser.role}
+                    animalId={selectedAnimalDetail.id}
+                    maxPhotos={6}
+                  />
+                </div>
               </div>
             )}
 

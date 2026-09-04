@@ -22,7 +22,9 @@ import {
   FollowUpRecord,
   FieldVisit,
   Advisory,
-  Species
+  Species,
+  AnimalPhoto,
+  AnimalPhotoType
 } from '../types';
 import {
   SEED_USERS,
@@ -805,7 +807,8 @@ class LivestockGuardStore {
       blockId: tempAnimal.blockId,
       villageId: tempAnimal.villageId,
       latitude: tempAnimal.latitude,
-      longitude: tempAnimal.longitude
+      longitude: tempAnimal.longitude,
+      photos: tempAnimal.photos || []
     });
 
     // Mark temp animal as registered and link
@@ -943,9 +946,17 @@ class LivestockGuardStore {
       finalPriority = 'URGENT';
     }
 
+    const caseId = `cas_${Date.now()}`;
+    const linkedAnimalId = caseData.animalId || caseData.temporaryAnimalId;
+    const linkedPhotos = (caseData.photos || []).map(p => ({
+      ...p,
+      caseId: caseId,
+      animalId: linkedAnimalId || p.animalId
+    }));
+
     const newCase: Case = {
       ...caseData,
-      id: `cas_${Date.now()}`,
+      id: caseId,
       caseNumber: caseNum,
       riskScore: hybridResult.finalRiskScore,
       riskLevel: hybridResult.finalRiskLevel,
@@ -975,6 +986,8 @@ class LivestockGuardStore {
       submittedAt: timestamp,
       deviceTimestamp: timestamp,
       provisionalOfflineScore: this.isSimulatedOffline,
+      photos: linkedPhotos,
+      photoEvidenceAvailable: linkedPhotos.length > 0,
       credibilityAuditTrail: [
         {
           id: `aud_cred_${Date.now()}`,
@@ -1015,14 +1028,27 @@ class LivestockGuardStore {
     this.cases.unshift(newCase);
     saveToStorage(STORAGE_KEYS.CASES, this.cases);
 
-    // If animal attached, mark status affected
+    // If animal attached, mark status affected and link photos
     if (newCase.animalId) {
       const anm = this.animals.find(a => a.id === newCase.animalId);
       if (anm) {
         anm.currentHealthStatus = 'AFFECTED';
         anm.activeCaseId = newCase.id;
         anm.lastCheckedAt = timestamp.split('T')[0];
+        if (linkedPhotos.length > 0) {
+          if (!anm.photos) anm.photos = [];
+          anm.photos.push(...linkedPhotos);
+        }
         saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
+      }
+    } else if (newCase.temporaryAnimalId) {
+      const tempAnm = this.temporaryAnimals.find(a => a.id === newCase.temporaryAnimalId);
+      if (tempAnm) {
+        if (linkedPhotos.length > 0) {
+          if (!tempAnm.photos) tempAnm.photos = [];
+          tempAnm.photos.push(...linkedPhotos);
+          saveToStorage(STORAGE_KEYS.TEMPORARY_ANIMALS, this.temporaryAnimals);
+        }
       }
     }
 
@@ -1349,6 +1375,113 @@ class LivestockGuardStore {
     return newReport;
   }
 
+  public addPhotoToCase(caseId: string, photo: AnimalPhoto): Case | undefined {
+    const caseObj = this.cases.find(c => c.id === caseId);
+    if (!caseObj) return undefined;
+
+    if (!caseObj.photos) caseObj.photos = [];
+    caseObj.photos.push(photo);
+    caseObj.photoEvidenceAvailable = true;
+
+    // Recalculate credibility with the new photo evidence
+    const reassessment = ReportCredibilityEngine.assessReportCredibility({
+      caseData: caseObj,
+      existingCases: this.cases,
+      animals: this.animals,
+      herds: this.herds,
+      currentUser: this.currentUser,
+      isOfflineSubmission: this.isSimulatedOffline
+    });
+    caseObj.credibilityScore = reassessment.credibilityScore;
+    caseObj.credibilityTier = reassessment.credibilityTier;
+    caseObj.credibilityReasons = reassessment.credibilityReasons;
+    caseObj.credibilityFeatureBreakdown = reassessment.credibilityFeatureBreakdown;
+
+    caseObj.auditTrail.push({
+      id: `aud_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      actorId: this.currentUser.id,
+      actorName: this.currentUser.name,
+      actorRole: this.currentUser.role,
+      action: 'PHOTO_EVIDENCE_ATTACHED',
+      details: `${photo.source || this.currentUser.role} attached photo (${photo.photoType}). Credibility score updated to ${reassessment.credibilityScore}/100.`
+    });
+
+    saveToStorage(STORAGE_KEYS.CASES, this.cases);
+
+    // Also link to animal if case has animalId
+    if (caseObj.animalId) {
+      this.addPhotoToAnimal(caseObj.animalId, photo);
+    }
+
+    this.notify();
+    return caseObj;
+  }
+
+  public addPhotoToAnimal(animalId: string, photo: AnimalPhoto): Animal | undefined {
+    const animal = this.animals.find(a => a.id === animalId);
+    if (!animal) return undefined;
+
+    if (!animal.photos) animal.photos = [];
+    if (!animal.photos.some(p => p.id === photo.id)) {
+      animal.photos.push(photo);
+      saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
+      this.notify();
+    }
+    return animal;
+  }
+
+  public updatePhotoReviewStatus(
+    arg1: string,
+    arg2: string,
+    arg3?: any,
+    arg4?: string
+  ): Case | undefined {
+    let caseId: string | undefined;
+    let photoId: string;
+    let status: 'RELEVANT' | 'NOT_RELEVANT' | 'NEED_BETTER_PHOTO';
+    let notes: string | undefined;
+
+    if (['RELEVANT', 'NOT_RELEVANT', 'NEED_BETTER_PHOTO'].includes(arg2)) {
+      // Called as: updatePhotoReviewStatus(photoId, status, notes)
+      photoId = arg1;
+      status = arg2 as any;
+      notes = typeof arg3 === 'string' ? arg3 : undefined;
+      const foundCase = this.cases.find(c => (c.photos || []).some(p => p.id === photoId));
+      caseId = foundCase?.id;
+    } else {
+      // Called as: updatePhotoReviewStatus(caseId, photoId, status, notes)
+      caseId = arg1;
+      photoId = arg2;
+      status = arg3;
+      notes = arg4;
+    }
+
+    if (!caseId) return undefined;
+    const caseObj = this.cases.find(c => c.id === caseId);
+    if (!caseObj || !caseObj.photos) return undefined;
+
+    const photo = caseObj.photos.find(p => p.id === photoId);
+    if (photo) {
+      photo.vetReviewStatus = status;
+      if (notes) photo.vetNotes = notes;
+
+      caseObj.auditTrail.push({
+        id: `aud_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        actorId: this.currentUser.id,
+        actorName: this.currentUser.name,
+        actorRole: this.currentUser.role,
+        action: 'PHOTO_REVIEWED',
+        details: `${this.currentUser.role === 'FIELD_WORKER' ? 'Field Worker' : 'Veterinarian'} marked photo (${photo.photoType}) as ${status}. ${notes ? `Note: "${notes}"` : ''}`
+      });
+
+      saveToStorage(STORAGE_KEYS.CASES, this.cases);
+      this.notify();
+    }
+    return caseObj;
+  }
+
   public createVaccinationRecord(vacData: Omit<VaccinationRecord, 'id' | 'status'>): VaccinationRecord {
     const newRecord: VaccinationRecord = {
       ...vacData,
@@ -1589,7 +1722,42 @@ class LivestockGuardStore {
 
         reAssessedCount++;
       }
+
+      // Mark any offline queued photos on cases as synced to central storage
+      if (c.photos && c.photos.length > 0) {
+        let photosUpdated = false;
+        c.photos.forEach(p => {
+          if (p.offlineQueued) {
+            p.offlineQueued = false;
+            photosUpdated = true;
+          }
+        });
+        if (photosUpdated) {
+          c.auditTrail.push({
+            id: `aud_photosync_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            action: 'PHOTO_EVIDENCE_SYNCED',
+            details: 'Local offline photographic evidence successfully uploaded to central surveillance database.',
+            timestamp: new Date().toISOString(),
+            actorId: 'sys_central_server',
+            actorName: 'Central Surveillance Sync Engine',
+            actorRole: 'SYSTEM_ADMIN'
+          });
+          reAssessedCount++;
+        }
+      }
     });
+
+    // Also mark offline queued photos on animals as synced
+    this.animals.forEach(a => {
+      if (a.photos && a.photos.length > 0) {
+        a.photos.forEach(p => {
+          if (p.offlineQueued) {
+            p.offlineQueued = false;
+          }
+        });
+      }
+    });
+    saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
 
     if (reAssessedCount > 0) {
       saveToStorage(STORAGE_KEYS.CASES, this.cases);

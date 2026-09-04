@@ -7,8 +7,10 @@ import {
   Farm,
   Case,
   TemporaryAnimal,
-  HistoricalCaseLink
+  HistoricalCaseLink,
+  AnimalPhoto
 } from '../../types';
+import { PhotoEvidenceSection } from '../common/PhotoEvidenceSection';
 import { SYMPTOMS_LIST, LOCATION_DATA } from '../../data/knowledgeBase';
 import { store } from '../../services/store';
 import { assessLivestockRisk } from '../../services/riskEngine';
@@ -62,7 +64,9 @@ import {
   Clock,
   ArrowRight,
   Building,
-  Users
+  Users,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -174,6 +178,9 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
   const [customLocationSelection, setCustomLocationSelection] = useState<NormalizedLocationSelection | null>(null);
   const [ownerName, setOwnerName] = useState<string>(currentUser.name);
   const [ownerPhone, setOwnerPhone] = useState<string>(currentUser.phone || '+91 98220 11223');
+
+  // Photographic Evidence (Optional)
+  const [attachedPhotos, setAttachedPhotos] = useState<AnimalPhoto[]>([]);
 
   // ==========================================
   // SUBMISSION & ESCALATION STATE
@@ -558,6 +565,8 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
       vaccinationStatusAtReport: vaccinationStatus,
       affectedCount,
       deadCount,
+      photos: attachedPhotos,
+      photoEvidenceAvailable: attachedPhotos.length > 0,
       status: 'NEW',
       priority: hybridAssessment.finalRiskLevel === 'CRITICAL' ? 'EMERGENCY' : hybridAssessment.finalRiskLevel === 'HIGH' ? 'URGENT' : 'ROUTINE'
     });
@@ -1459,6 +1468,17 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
               })}
           </div>
 
+          {/* Clinical Photographic Evidence Sub-section */}
+          <div className="pt-6 border-t border-slate-100 space-y-3">
+            <PhotoEvidenceSection
+              photos={attachedPhotos}
+              onChange={setAttachedPhotos}
+              currentUserRole={currentUser.role}
+              animalId={selectedAnimalId || 'anm_report'}
+              maxPhotos={5}
+            />
+          </div>
+
           {/* Navigation Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-slate-100">
             <button
@@ -1957,6 +1977,39 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
                 <span className="block text-slate-500 mt-0.5">
                   Suspected: {riskAssessment.suspectedDiseases?.[0]?.diseaseName || 'Differential Pending'}
                 </span>
+              </div>
+            </div>
+
+            {/* Photo Evidence Review Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                Clinical Photo Evidence
+              </div>
+              <div className="font-black text-sm text-slate-900">
+                {attachedPhotos.length > 0 ? `${attachedPhotos.length} Photo(s) Attached` : 'No Photos (Optional)'}
+              </div>
+              <div className="text-xs text-slate-600">
+                {attachedPhotos.length > 0 ? (
+                  <div className="flex items-center gap-2 mt-1.5 overflow-x-auto py-1">
+                    {attachedPhotos.map((photo, pIdx) => (
+                      <div key={photo.id || pIdx} className="relative group shrink-0">
+                        <img
+                          src={photo.thumbnailReference || photo.storageReference}
+                          alt={photo.photoType}
+                          className="w-10 h-10 rounded-lg object-cover border border-slate-300"
+                        />
+                        <span className="absolute -bottom-1 -right-1 text-[8px] bg-black/75 text-white px-1 rounded font-bold">
+                          {photo.photoType === 'SYMPTOM' ? 'Sym' : photo.photoType === 'LESION' ? 'Les' : 'Id'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-slate-400">
+                    Photos strengthen triage credibility but are not mandatory for reporting.
+                  </span>
+                )}
               </div>
             </div>
           </div>

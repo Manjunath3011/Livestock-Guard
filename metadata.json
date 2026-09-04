@@ -1,6 +1,6 @@
 {
-  "name": "Livestock Guard",
+  "name": "Livestock Guard Platform",
   "description": "Intelligent animal-health surveillance, early-warning risk engine, and outbreak management platform for farmers, veterinarians, labs, and government authorities.",
-  "requestFramePermissions": ["geolocation"],
+  "requestFramePermissions": ["geolocation", "camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -17,7 +17,8 @@ import {
   ShieldCheck,
   Send,
   UserCheck,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Camera
 } from 'lucide-react';
 import { store } from '../../services/store';
 import { FieldVisit, Case, Animal, Alert, LabSample, OfflineSyncItem } from '../../types';
@@ -376,6 +377,12 @@ export const FieldWorkerDashboardView: React.FC<FieldWorkerDashboardViewProps> =
                             isUrgent={c.isCriticalUrgentVerification}
                             size="sm"
                           />
+                          {(c.photos || []).length > 0 && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                              <Camera className="w-3 h-3" />
+                              {c.photos!.length} Photo{c.photos!.length > 1 ? 's' : ''}
+                            </span>
+                          )}
                         </div>
 
                         <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 mt-1.5">

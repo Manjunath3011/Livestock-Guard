@@ -430,8 +430,21 @@ export class ReportCredibilityEngine {
     } else if (caseData.verificationEvidence && caseData.verificationEvidence.length > 0) {
       evidenceStrengthScore = 65;
       credibilityReasons.push(`✓ Supporting diagnostic evidence attached (${caseData.verificationEvidence.length} item(s))`);
+    } else if (caseData.photos && caseData.photos.length > 0) {
+      // Photo Evidence attached
+      const hasFieldWorkerOrVetPhoto = caseData.photos.some(
+        p => p.source === 'FIELD_WORKER' || p.source === 'VET' || p.uploaderRole === 'FIELD_WORKER' || p.uploaderRole === 'VETERINARIAN'
+      );
+
+      if (hasFieldWorkerOrVetPhoto) {
+        evidenceStrengthScore = 78; // Stronger verified photo evidence
+        credibilityReasons.push(`✓ Field worker / veterinary verified clinical photograph(s) attached (${caseData.photos.length} item(s))`);
+      } else {
+        evidenceStrengthScore = 60; // Relevant photo available from farmer
+        credibilityReasons.push(`✓ Photographic clinical evidence attached (${caseData.photos.length} photo(s) available for veterinary review)`);
+      }
     } else {
-      credibilityReasons.push('ⓘ Initial report awaiting ground clinical verification');
+      credibilityReasons.push('ⓘ Initial report awaiting ground clinical verification (no photo attached)');
     }
 
     evidenceStrengthScore = Math.max(0, Math.min(100, evidenceStrengthScore));

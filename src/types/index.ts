@@ -305,6 +305,44 @@ export interface Farm {
   biosecurityLevel: 'BASIC' | 'STANDARD' | 'ADVANCED';
 }
 
+export type AnimalPhotoType =
+  | 'ANIMAL_OVERVIEW'
+  | 'ANIMAL_ID'
+  | 'SYMPTOM'
+  | 'LESION'
+  | 'OTHER';
+
+export interface AnimalPhoto {
+  id: string;
+  animalId: string;
+  caseId?: string;
+  photoType: AnimalPhotoType;
+  storageReference: string; // URL, data URL or storage key
+  thumbnailReference?: string;
+  capturedAt: string;
+  uploadedAt?: string;
+  capturedOffline?: boolean;
+  offlineQueued?: boolean;
+  uploadedBy: string;
+  uploaderName?: string;
+  uploaderRole?: Role;
+  source?: 'FARMER' | 'FIELD_WORKER' | 'VET';
+  label?: string;
+  notes?: string;
+  qualityStatus?: 'GOOD' | 'BLURRY_OR_DARK' | 'POOR';
+  vetReviewStatus?: 'PENDING' | 'RELEVANT' | 'NOT_RELEVANT' | 'NEED_BETTER_PHOTO';
+  vetNotes?: string;
+  metadata?: {
+    width?: number;
+    height?: number;
+    fileSize?: number;
+    mimeType?: string;
+    originalFileName?: string;
+    gpsAvailable?: boolean;
+    gpsAccuracy?: number;
+  };
+}
+
 export interface Animal {
   id: string;
   tagNumber: string;
@@ -334,6 +372,7 @@ export interface Animal {
   vaccinationCount: number;
   activeCaseId?: string;
   lactationCount?: number;
+  photos?: AnimalPhoto[];
 }
 
 export interface Herd {
@@ -558,6 +597,7 @@ export interface TemporaryAnimal {
   isFormallyRegistered?: boolean;
   permanentTagNumber?: string;
   permanentAnimalId?: string;
+  photos?: AnimalPhoto[];
 }
 
 export interface HistoricalCaseLink {
@@ -680,6 +720,8 @@ export interface Case {
   rejectedBy?: string;
   rejectedAt?: string;
   provisionalOfflineScore?: boolean;
+  photos?: AnimalPhoto[];
+  photoEvidenceAvailable?: boolean;
 }
 
 export interface Vaccine {

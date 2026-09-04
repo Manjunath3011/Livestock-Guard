@@ -9,6 +9,7 @@ import { Modal } from '../common/Modal';
 import { HybridDecisionSupportCard } from '../common/HybridDecisionSupportCard';
 import { HybridRiskEngine } from '../../services/HybridRiskEngine';
 import { useTranslation } from '../../i18n/translations';
+import { PhotoEvidenceSection } from '../common/PhotoEvidenceSection';
 import {
   Stethoscope,
   Activity,
@@ -30,7 +31,8 @@ import {
   AlertTriangle,
   Send,
   History,
-  BrainCircuit
+  BrainCircuit,
+  Camera
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -80,7 +82,7 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
   const [dosage, setDosage] = useState('15 ml IM OD for 3 days');
   const [treatmentNotes, setTreatmentNotes] = useState('Provide soft mash feed and 2% sodium carbonate mouth wash.');
 
-  const [caseDetailTab, setCaseDetailTab] = useState<'DECISION_SUPPORT' | 'CREDIBILITY' | 'OVERVIEW' | 'FOLLOWUPS' | 'AUDIT'>('DECISION_SUPPORT');
+  const [caseDetailTab, setCaseDetailTab] = useState<'DECISION_SUPPORT' | 'CREDIBILITY' | 'PHOTOS' | 'OVERVIEW' | 'FOLLOWUPS' | 'AUDIT'>('DECISION_SUPPORT');
 
   const selectedCaseHybridAssessment = useMemo(() => {
     if (!selectedCase) return null;
@@ -311,6 +313,12 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                         <span className="font-bold text-xs text-slate-800">
                           {c.species} • {c.villageName}
                         </span>
+                        {(c.photos || []).length > 0 && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1" title={`${c.photos!.length} photo(s) attached`}>
+                            <Camera className="w-2.5 h-2.5" />
+                            {c.photos!.length}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs font-semibold text-emerald-800 mt-1">
                         Suspected: {c.suspectedDiseases?.[0]?.diseaseName || 'Under Evaluation'}
@@ -434,6 +442,7 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                 {[
                   { id: 'DECISION_SUPPORT', label: 'AI & Hybrid Support', icon: BrainCircuit },
                   { id: 'CREDIBILITY', label: 'Credibility & Audit', icon: ShieldAlert },
+                  { id: 'PHOTOS', label: `Photo Evidence (${(selectedCase.photos || []).length})`, icon: Camera },
                   { id: 'OVERVIEW', label: 'Case Overview', icon: FileText },
                   { id: 'FOLLOWUPS', label: `Follow-Ups (${(selectedCase.followUpRecords || []).length})`, icon: HeartPulse },
                   { id: 'AUDIT', label: 'Audit Log', icon: Clock }
@@ -552,6 +561,36 @@ export const VeterinaryDashboardView: React.FC<VeterinaryDashboardViewProps> = (
                         Open Comprehensive Credibility & Audit Console
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: PHOTO EVIDENCE & VETERINARY VERIFICATION */}
+              {caseDetailTab === 'PHOTOS' && (
+                <div className="space-y-4 animate-in fade-in">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <PhotoEvidenceSection
+                      photos={selectedCase.photos || []}
+                      onChange={(newPhotos) => {
+                        if (selectedCase) {
+                          if (newPhotos.length > (selectedCase.photos || []).length) {
+                            const latest = newPhotos[newPhotos.length - 1];
+                            store.addPhotoToCase(selectedCase.id, latest);
+                            const updated = store.getCaseById(selectedCase.id);
+                            if (updated) setSelectedCase({ ...updated });
+                          }
+                        }
+                      }}
+                      allowVetReview={true}
+                      onReviewPhoto={(photoId, status, notes) => {
+                        store.updatePhotoReviewStatus(photoId, status, currentUser.name, notes);
+                        const updated = store.getCaseById(selectedCase.id);
+                        if (updated) setSelectedCase({ ...updated });
+                      }}
+                      currentUserRole={currentUser.role}
+                      caseId={selectedCase.id}
+                      animalId={selectedCase.animalId}
+                    />
                   </div>
                 </div>
               )}

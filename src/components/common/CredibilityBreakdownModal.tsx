@@ -23,16 +23,18 @@ import {
   History,
   Check,
   ExternalLink,
-  HelpCircle
+  HelpCircle,
+  Camera
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { PhotoEvidenceSection } from './PhotoEvidenceSection';
 
 interface CredibilityBreakdownModalProps {
   caseItem: Case;
   currentUser: User;
   isOpen: boolean;
   initialAction?: 'FIELD_VERIFY' | 'VET_VERIFY' | 'LAB_CONFIRM' | 'REQUEST_INFO' | 'REJECT' | 'DISMISS';
-  initialTab?: 'BREAKDOWN' | 'ACTIONS' | 'AUDIT';
+  initialTab?: 'BREAKDOWN' | 'ACTIONS' | 'PHOTOS' | 'AUDIT';
   onClose: () => void;
   onCaseUpdated?: (updatedCase: Case) => void;
 }
@@ -47,7 +49,7 @@ export const CredibilityBreakdownModal: React.FC<CredibilityBreakdownModalProps>
   onCaseUpdated
 }) => {
   const defaultAction = initialAction || (currentUser.role === 'FIELD_WORKER' ? 'FIELD_VERIFY' : currentUser.role === 'LABORATORY_STAFF' ? 'LAB_CONFIRM' : 'VET_VERIFY');
-  const [activeTab, setActiveTab] = useState<'BREAKDOWN' | 'ACTIONS' | 'AUDIT'>(initialTab || (initialAction ? 'ACTIONS' : 'BREAKDOWN'));
+  const [activeTab, setActiveTab] = useState<'BREAKDOWN' | 'ACTIONS' | 'PHOTOS' | 'AUDIT'>(initialTab || (initialAction ? 'ACTIONS' : 'BREAKDOWN'));
   const [actionType, setActionType] = useState<
     'FIELD_VERIFY' | 'VET_VERIFY' | 'LAB_CONFIRM' | 'REQUEST_INFO' | 'REJECT' | 'DISMISS'
   >(defaultAction);
@@ -194,6 +196,17 @@ export const CredibilityBreakdownModal: React.FC<CredibilityBreakdownModalProps>
           >
             <UserCheck className="w-3.5 h-3.5" />
             Verification Actions
+          </button>
+          <button
+            onClick={() => setActiveTab('PHOTOS')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+              activeTab === 'PHOTOS'
+                ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5" />
+            Photo Evidence ({(caseItem.photos || []).length})
           </button>
           <button
             onClick={() => setActiveTab('AUDIT')}
@@ -652,6 +665,38 @@ export const CredibilityBreakdownModal: React.FC<CredibilityBreakdownModalProps>
                 </div>
               </form>
             )}
+          </div>
+        )}
+
+        {/* Tab: Photo Evidence & Verification */}
+        {activeTab === 'PHOTOS' && (
+          <div className="p-6 max-h-[70vh] overflow-y-auto space-y-4">
+            <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <PhotoEvidenceSection
+                photos={caseItem.photos || []}
+                onChange={(newPhotos) => {
+                  if (newPhotos.length > (caseItem.photos || []).length) {
+                    const latest = newPhotos[newPhotos.length - 1];
+                    store.addPhotoToCase(caseItem.id, latest);
+                    const updated = store.getCaseById(caseItem.id);
+                    if (updated && onCaseUpdated) {
+                      onCaseUpdated(updated);
+                    }
+                  }
+                }}
+                allowVetReview={canVetVerify || canFieldVerify}
+                onReviewPhoto={(photoId, status, notes) => {
+                  store.updatePhotoReviewStatus(photoId, status, currentUser.name, notes);
+                  const updated = store.getCaseById(caseItem.id);
+                  if (updated && onCaseUpdated) {
+                    onCaseUpdated(updated);
+                  }
+                }}
+                currentUserRole={currentUser.role}
+                caseId={caseItem.id}
+                animalId={caseItem.animalId}
+              />
+            </div>
           </div>
         )}
 
