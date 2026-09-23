@@ -373,6 +373,8 @@ export interface Animal {
   activeCaseId?: string;
   lactationCount?: number;
   photos?: AnimalPhoto[];
+  isArchived?: boolean;
+  isDeleted?: boolean;
 }
 
 export interface Herd {

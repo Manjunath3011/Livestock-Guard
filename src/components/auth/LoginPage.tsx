@@ -64,10 +64,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   }[] = [
     {
       role: 'FARMER',
-      name: 'Ramesh Patil',
-      title: 'Dairy & Livestock Farmer',
+      name: 'Ramesh Patil (Farmer A)',
+      title: 'Dairy Farmer (Baramati, Pune)',
       email: 'farmer@livestockguard.gov.in',
       phone: '9822011223',
+      icon: '👨🌾',
+      badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300',
+      accentColor: 'border-emerald-500 hover:border-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
+    },
+    {
+      role: 'FARMER',
+      name: 'Mahadev Jadhav (Farmer B)',
+      title: 'Cattle Farmer (Karad, Satara)',
+      email: 'mahadev.farmer@livestockguard.gov.in',
+      phone: '9822055668',
       icon: '👨🌾',
       badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300',
       accentColor: 'border-emerald-500 hover:border-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
@@ -152,12 +162,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }, 200);
   };
 
-  const handleQuickLogin = (role: Role) => {
+  const handleQuickLogin = (accountOrRole: (typeof demoAccounts)[0] | Role) => {
     setErrorMessage(null);
     setIsLoading(true);
 
     setTimeout(() => {
-      const result = store.loginAsRole(role);
+      let result;
+      if (typeof accountOrRole === 'object' && accountOrRole.email) {
+        result = store.login(accountOrRole.email);
+        if (!result.success) {
+          result = store.loginAsRole(accountOrRole.role);
+        }
+      } else {
+        result = store.loginAsRole(accountOrRole as Role);
+      }
+
       setIsLoading(false);
       if (result.success && result.user) {
         if (onLoginSuccess) {
@@ -461,8 +480,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   const meta = ROLE_DEFINITIONS[acc.role] || ROLE_DEFINITIONS.FARMER;
                   return (
                     <div
-                      key={acc.role}
-                      onClick={() => handleQuickLogin(acc.role)}
+                      key={acc.email}
+                      onClick={() => handleQuickLogin(acc)}
                       className={`p-4 rounded-2xl border bg-white dark:bg-slate-900 transition-all cursor-pointer flex flex-col justify-between gap-3 shadow-2xs group ${acc.accentColor}`}
                     >
                       <div className="flex items-start justify-between gap-2">

@@ -1,6 +1,7 @@
 import { DatasetRecord, DiagnosisSource, LabelQuality, SymptomSeverity } from './types';
 import { Species } from '../types';
 import { SYMPTOMS_LIST, DISEASES_DATABASE } from '../data/knowledgeBase';
+import { mapDiseaseLabelSafely } from './controlledVocabularies';
 
 /**
  * Mapping table of diverse disease names and codes to canonical disease IDs
@@ -460,7 +461,7 @@ export function normalizeDatasetRecord(raw: any, index: number = 0): DatasetReco
     };
   }
 
-  // 1. Resolve Target Disease Label (Search all aliases)
+  // 1. Resolve Target Disease Label (Using Controlled Vocabulary Mapping)
   const rawDisease =
     raw.disease_label ||
     raw.confirmed_disease ||
@@ -476,7 +477,12 @@ export function normalizeDatasetRecord(raw: any, index: number = 0): DatasetReco
     raw.disease_id ||
     raw.diseaseId ||
     '';
-  const disease_label = normalizeDiseaseLabel(rawDisease);
+  
+  const mappingResult = mapDiseaseLabelSafely(rawDisease);
+  const disease_label = mappingResult.isMapped ? mappingResult.canonicalId : normalizeDiseaseLabel(rawDisease);
+  const is_unmapped_disease = !mappingResult.isMapped;
+  const unmapped_reason = mappingResult.unmappedReason;
+  const original_disease_label = String(rawDisease || '');
 
   // 2. Resolve Symptoms
   const rawSymptoms =
@@ -560,39 +566,64 @@ export function normalizeDatasetRecord(raw: any, index: number = 0): DatasetReco
     record_id: raw.record_id || raw.id || `rec_norm_${Date.now()}_${index}`,
     animal_id: raw.animal_id || raw.animalId || `anm_${index}`,
     farm_id: raw.farm_id || raw.farmId || `farm_${Math.floor(index / 4)}`,
+    case_id: raw.case_id || raw.caseId || raw.outbreak_id || raw.outbreakId,
     outbreak_id: raw.outbreak_id || raw.outbreakId,
     species,
     breed: raw.breed || raw.Breed,
     age_years: isNaN(age_years as any) ? undefined : age_years,
     sex: raw.sex ? (raw.sex.toString().toUpperCase() as any) : 'UNKNOWN',
+    country: raw.country || 'India',
     state: raw.state || raw.state_id || 'Maharashtra',
     district: raw.district || raw.district_id || 'Pune',
     subdistrict: raw.subdistrict || raw.block,
+    block: raw.block || raw.subdistrict,
     village: raw.village,
+    latitude: raw.latitude !== undefined ? Number(raw.latitude) : undefined,
+    longitude: raw.longitude !== undefined ? Number(raw.longitude) : undefined,
+    gps_accuracy: raw.gps_accuracy !== undefined ? Number(raw.gps_accuracy) : undefined,
     symptoms,
     symptom_duration_days: isNaN(symptom_duration_days) ? 2 : Math.max(1, symptom_duration_days),
+    clinical_history: raw.clinical_history || raw.clinicalHistory,
     vaccination_status,
+    vaccination_history: raw.vaccination_history || raw.vaccinationHistory,
     last_vaccination_date: raw.last_vaccination_date || raw.vaccination_date,
     affected_animals: isNaN(affected_animals) ? 1 : Math.max(1, affected_animals),
+    unaffected_animals: raw.unaffected_animals !== undefined ? Number(raw.unaffected_animals) : Math.max(0, (isNaN(herd_size) ? 10 : herd_size) - (isNaN(affected_animals) ? 1 : affected_animals)),
     total_animals: isNaN(herd_size) ? 10 : Math.max(1, herd_size),
     herd_size: isNaN(herd_size) ? 10 : Math.max(1, herd_size),
     mortality: isNaN(dead_count) ? 0 : Math.max(0, dead_count),
     dead_count: isNaN(dead_count) ? 0 : Math.max(0, dead_count),
     nearby_cases: isNaN(nearby_cases) ? 0 : Math.max(0, nearby_cases),
     nearby_cases_10km: isNaN(nearby_cases) ? 0 : Math.max(0, nearby_cases),
+    nearby_outbreaks: raw.nearby_outbreaks !== undefined ? Number(raw.nearby_outbreaks) : Math.min(isNaN(nearby_cases) ? 0 : nearby_cases, 2),
     distance_to_nearest_case_km: isNaN(distance_to_nearest_case_km) ? 15 : Math.max(0.1, distance_to_nearest_case_km),
     temperature: isNaN(temperature) ? 28 : temperature,
     temperature_c: isNaN(temperature) ? 28 : temperature,
+    temperature_environment: raw.temperature_environment !== undefined ? Number(raw.temperature_environment) : (isNaN(temperature) ? 28 : temperature),
     humidity: isNaN(humidity) ? 65 : humidity,
     humidity_pct: isNaN(humidity) ? 65 : humidity,
     rainfall: isNaN(rainfall) ? 0 : rainfall,
     rainfall_mm: isNaN(rainfall) ? 0 : rainfall,
     season,
-    disease_label,
-    diagnosis_source,
+    observation_date: raw.observation_date || raw.date || raw.created_at || new Date().toISOString().split('T')[0],
     diagnosis_date: raw.diagnosis_date || raw.date || new Date().toISOString().split('T')[0],
+    reporting_date: raw.reporting_date || raw.created_at || new Date().toISOString().split('T')[0],
+    suspected_disease: raw.suspected_disease || raw.suspectedDisease,
+    disease_label,
+    original_disease_label,
+    is_unmapped_disease,
+    unmapped_reason,
+    diagnosis_source,
     lab_test: raw.lab_test,
+    test_performed: raw.test_performed || raw.lab_test,
     lab_result: raw.lab_result ? (raw.lab_result.toString().toUpperCase() as any) : undefined,
+    test_result: raw.test_result || (raw.lab_result ? String(raw.lab_result) : undefined),
+    confirmation_status: raw.confirmation_status || (raw.lab_result === 'POSITIVE' ? 'CONFIRMED' : 'SUSPECTED'),
+    dataset_id: raw.dataset_id || raw.datasetId,
+    source_type: raw.source_type || raw.sourceType,
+    source_url: raw.source_url || raw.sourceURL,
+    source_record_id: raw.source_record_id || raw.sourceRecordId || raw.record_id,
+    license: raw.license,
     label_quality,
     data_source: raw.data_source || raw.source_organization || 'Normalized Clinical Stream',
     created_at: raw.created_at || raw.timestamp || new Date().toISOString()

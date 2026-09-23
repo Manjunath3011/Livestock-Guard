@@ -15,6 +15,7 @@ export const AccessDeniedView: React.FC<AccessDeniedViewProps> = ({
   onRedirectHome
 }) => {
   const roleMeta = getRoleMetadata(userRole);
+  const isLab = userRole === 'LABORATORY_STAFF' || userRole === 'DIAGNOSTIC_LAB';
 
   return (
     <div className="min-h-[500px] flex items-center justify-center p-6">
@@ -31,18 +32,25 @@ export const AccessDeniedView: React.FC<AccessDeniedViewProps> = ({
           <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
             Insufficient Role Permissions
           </h2>
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+            You don't have permission to access this administrative section.
+          </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Your authenticated role as <strong className="text-slate-900 dark:text-white">{roleMeta.displayName}</strong> ({userRole}) does not have administrative clearance to access the <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-[11px] text-rose-600 dark:text-rose-400 font-bold">{attemptedModule}</code> module.
+            Your authenticated role as <strong className="text-slate-900 dark:text-white">{roleMeta.displayName}</strong> ({userRole}) is scoped to authorized operational workflows. The requested <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-[11px] text-rose-600 dark:text-rose-400 font-bold">{attemptedModule}</code> module requires administrative or system-governance permissions.
           </p>
         </div>
 
         <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 text-left space-y-2">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
             <AlertTriangle className="w-4 h-4 text-amber-500" />
-            <span>Role-Based Clearance Enforced</span>
+            <span>Least-Privilege RBAC Enforced</span>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Access to veterinary command centers, diagnostic test pipelines, and state epidemiological data is restricted according to statutory biosecurity protocols.
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+            {isLab ? (
+              <>Diagnostic Laboratory accounts are authorized for sample accessioning, RT-PCR/ELISA testing, result certification, laboratory pathology reports, and disease surveillance context. System configuration, user administration, and state-wide administrative directives are restricted to authorized authorities.</>
+            ) : (
+              <>Access to veterinary command centers, diagnostic test pipelines, and government administration is restricted according to statutory animal biosecurity and data protection protocols.</>
+            )}
           </p>
         </div>
 
@@ -52,7 +60,7 @@ export const AccessDeniedView: React.FC<AccessDeniedViewProps> = ({
             className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-700/20 transition-all cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Return to {roleMeta.shortLabel} Dashboard</span>
+            <span>Return to {isLab ? 'Laboratory' : roleMeta.shortLabel} Dashboard</span>
           </button>
         </div>
       </div>

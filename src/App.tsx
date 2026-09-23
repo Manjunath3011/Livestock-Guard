@@ -53,7 +53,9 @@ export function App() {
   const currentUser = store.getCurrentUser();
   const cases = store.getCases() || [];
   const outbreaks = store.getOutbreaks() || [];
-  const animals = store.getAnimals() || [];
+  const scopedAnimals = store.getScopedAnimals() || [];
+  const allAnimals = store.getAnimals() || [];
+  const animals = currentUser?.role === 'FARMER' ? scopedAnimals : allAnimals;
   const herds = store.getHerds() || [];
   const farms = store.getFarms() || [];
   const labSamples = store.getLabSamples() || [];
@@ -163,7 +165,7 @@ export function App() {
       case 'animals':
         return (
           <AnimalsView
-            animals={animals}
+            animals={scopedAnimals}
             farms={farms}
             currentUser={currentUser}
           />
@@ -200,6 +202,8 @@ export function App() {
               cases={cases}
               outbreaks={outbreaks}
               mortalities={mortalities}
+              labSamples={labSamples}
+              currentUser={currentUser}
               selectedCaseId={selectedCaseIdForMap}
               onSelectCase={id => setSelectedCaseIdForMap(id)}
               height="h-[640px]"
@@ -259,7 +263,9 @@ export function App() {
         return <HistoricalTrendsView />;
 
       case 'reports_analytics':
-        return <ReportsAnalyticsView />;
+      case 'government_reports':
+      case 'reports':
+        return <ReportsAnalyticsView currentUser={currentUser} onNavigate={setActiveModule} />;
 
       case 'settings':
         return <SettingsView />;

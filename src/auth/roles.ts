@@ -248,6 +248,158 @@ export function getRoleMetadata(role: Role): RoleMetadata {
 }
 
 /**
+ * ============================================================================
+ * GRANULAR ROLE-BASED ACCESS CONTROL (RBAC) PERMISSION DEFINITIONS
+ * ============================================================================
+ * Strict least-privilege architecture: Each operational role has granular
+ * permissions. Administrative controls remain restricted to authorized tiers.
+ */
+
+export type Permission =
+  // Laboratory Operations & Diagnostic Reports
+  | 'samples:view'
+  | 'samples:process'
+  | 'samples:certify'
+  | 'reports:lab'
+  | 'reports:disease_surveillance'
+  // Clinical / Field Operations
+  | 'cases:view_clinical'
+  | 'cases:report'
+  | 'field:operations'
+  // GIS & Surveillance Layers
+  | 'gis:risk_map'
+  | 'surveillance:disease_data'
+  // District Operational & Analytics
+  | 'reports:district_summary'
+  | 'outbreak:manage'
+  | 'vaccination:schedule'
+  // State Administrative & Analytics
+  | 'reports:state_analytics'
+  | 'reports:compliance_export'
+  | 'advisory:publish'
+  // System Administration (Strictly Restricted)
+  | 'reports:administration'
+  | 'reports:system_analytics'
+  | 'system:configuration'
+  | 'users:manage'
+  | 'audit:view_all';
+
+export const ROLE_PERMISSIONS: Record<CanonicalRole, Permission[]> = {
+  FARMER: [
+    'cases:report',
+    'gis:risk_map',
+    'reports:disease_surveillance'
+  ],
+  FIELD_WORKER: [
+    'cases:report',
+    'field:operations',
+    'gis:risk_map',
+    'reports:disease_surveillance'
+  ],
+  VETERINARIAN: [
+    'cases:view_clinical',
+    'cases:report',
+    'samples:view',
+    'gis:risk_map',
+    'reports:lab',
+    'reports:disease_surveillance',
+    'surveillance:disease_data'
+  ],
+  DIAGNOSTIC_LAB: [
+    'samples:view',
+    'samples:process',
+    'samples:certify',
+    'reports:lab',
+    'reports:disease_surveillance',
+    'gis:risk_map',
+    'surveillance:disease_data'
+  ],
+  LABORATORY_STAFF: [
+    'samples:view',
+    'samples:process',
+    'samples:certify',
+    'reports:lab',
+    'reports:disease_surveillance',
+    'gis:risk_map',
+    'surveillance:disease_data'
+  ],
+  DISTRICT_OFFICIAL: [
+    'cases:view_clinical',
+    'samples:view',
+    'gis:risk_map',
+    'reports:lab',
+    'reports:disease_surveillance',
+    'surveillance:disease_data',
+    'reports:district_summary',
+    'outbreak:manage',
+    'vaccination:schedule'
+  ],
+  STATE_ADMIN: [
+    'cases:view_clinical',
+    'samples:view',
+    'gis:risk_map',
+    'reports:lab',
+    'reports:disease_surveillance',
+    'surveillance:disease_data',
+    'reports:district_summary',
+    'reports:state_analytics',
+    'reports:compliance_export',
+    'advisory:publish',
+    'outbreak:manage',
+    'vaccination:schedule',
+    'audit:view_all'
+  ],
+  SYSTEM_ADMIN: [
+    'samples:view',
+    'samples:process',
+    'samples:certify',
+    'cases:view_clinical',
+    'cases:report',
+    'field:operations',
+    'gis:risk_map',
+    'surveillance:disease_data',
+    'reports:lab',
+    'reports:disease_surveillance',
+    'reports:district_summary',
+    'reports:state_analytics',
+    'reports:compliance_export',
+    'advisory:publish',
+    'outbreak:manage',
+    'vaccination:schedule',
+    'reports:administration',
+    'reports:system_analytics',
+    'system:configuration',
+    'users:manage',
+    'audit:view_all'
+  ]
+};
+
+/**
+ * Verify whether a role has a specific granular permission
+ */
+export function hasPermission(role: Role | null | undefined, permission: Permission): boolean {
+  if (!role) return false;
+  const canonical = normalizeRole(role);
+  if (!canonical) return false;
+  const permissions = ROLE_PERMISSIONS[canonical] || [];
+  return permissions.includes(permission);
+}
+
+/**
+ * Verify whether a role has any of the requested permissions
+ */
+export function hasAnyPermission(role: Role | null | undefined, permissions: Permission[]): boolean {
+  return permissions.some(p => hasPermission(role, p));
+}
+
+/**
+ * Verify whether a role has all of the requested permissions
+ */
+export function hasAllPermissions(role: Role | null | undefined, permissions: Permission[]): boolean {
+  return permissions.every(p => hasPermission(role, p));
+}
+
+/**
  * Access Control Matrix for direct URL/Module protection
  */
 export const MODULE_PERMISSIONS: Record<string, Role[]> = {
@@ -267,7 +419,9 @@ export const MODULE_PERMISSIONS: Record<string, Role[]> = {
   knowledge_base: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
   weather: ['FARMER', 'FIELD_WORKER', 'VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
   historical_trends: ['VETERINARIAN', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
-  reports_analytics: ['DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
+  reports_analytics: ['LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'VETERINARIAN', 'FIELD_WORKER', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
+  government_reports: ['LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'VETERINARIAN', 'FIELD_WORKER', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
+  reports: ['LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'VETERINARIAN', 'FIELD_WORKER', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN'],
   ml_management: ['SYSTEM_ADMIN', 'STATE_ADMIN', 'VETERINARIAN', 'DISTRICT_OFFICIAL'],
   settings: ['SYSTEM_ADMIN', 'STATE_ADMIN', 'DISTRICT_OFFICIAL'],
   system_admin: ['SYSTEM_ADMIN']

@@ -79,8 +79,71 @@ const STORAGE_KEYS = {
   TEMPORARY_ANIMALS: 'lg_temporary_animals',
   DEMO_MODE: 'lg_demo_mode',
   AUTH_USER: 'lg_auth_user',
-  IS_LOGGED_IN: 'lg_is_logged_in'
+  IS_LOGGED_IN: 'lg_is_logged_in',
+  LAB_AUDIT_LOGS: 'lg_lab_audit_logs'
 };
+
+export interface LabAuditEntry {
+  id: string;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  userRole: Role;
+  action: 'SAMPLE_RESULT_UPDATED' | 'CONFIRMATION_STATUS_CHANGED' | 'LAB_REPORT_GENERATED' | 'LAB_REPORT_VIEWED' | 'SAMPLE_ACCESSIONED';
+  sampleId?: string;
+  sampleCode?: string;
+  caseId?: string;
+  caseNumber?: string;
+  previousValue?: string;
+  newValue?: string;
+  details: string;
+}
+
+const SEED_LAB_AUDIT_LOGS: LabAuditEntry[] = [
+  {
+    id: 'laud_001',
+    timestamp: '2026-08-23T14:30:00Z',
+    userId: 'usr_lab_01',
+    userName: 'Dr. Priya Kulkarni, MVSc',
+    userRole: 'LABORATORY_STAFF',
+    action: 'SAMPLE_ACCESSIONED',
+    sampleId: 'smp_2026_001',
+    sampleCode: 'LAB-PUN-2026-0881',
+    caseId: 'cas_2026_001',
+    caseNumber: 'CAS-MH-PUN-2026-0089',
+    details: 'Sample received under cold chain (4°C) with intact seal. Accessioned for RT-PCR testing.'
+  },
+  {
+    id: 'laud_002',
+    timestamp: '2026-08-22T16:15:00Z',
+    userId: 'usr_lab_01',
+    userName: 'Dr. Priya Kulkarni, MVSc',
+    userRole: 'LABORATORY_STAFF',
+    action: 'SAMPLE_RESULT_UPDATED',
+    sampleId: 'smp_2026_003',
+    sampleCode: 'LAB-SAT-2026-0194',
+    caseId: 'cas_2026_002',
+    caseNumber: 'CAS-MH-SAT-2026-0045',
+    previousValue: 'PENDING',
+    newValue: 'POSITIVE',
+    details: 'Capripoxvirus viral DNA detected via real-time PCR assay (Ct value 21.4).'
+  },
+  {
+    id: 'laud_003',
+    timestamp: '2026-08-22T16:16:00Z',
+    userId: 'usr_lab_01',
+    userName: 'Dr. Priya Kulkarni, MVSc',
+    userRole: 'LABORATORY_STAFF',
+    action: 'CONFIRMATION_STATUS_CHANGED',
+    sampleId: 'smp_2026_003',
+    sampleCode: 'LAB-SAT-2026-0194',
+    caseId: 'cas_2026_002',
+    caseNumber: 'CAS-MH-SAT-2026-0045',
+    previousValue: 'SUSPECTED',
+    newValue: 'CONFIRMED',
+    details: 'Diagnostic laboratory confirmation recorded for Lumpy Skin Disease. Escalated to state surveillance.'
+  }
+];
 
 const SEED_TEMPORARY_ANIMALS: TemporaryAnimal[] = [
   {
@@ -159,6 +222,7 @@ class LivestockGuardStore {
   private fieldVisits: FieldVisit[] = [];
   private advisories: Advisory[] = [];
   private temporaryAnimals: TemporaryAnimal[] = [];
+  private labAuditLogs: LabAuditEntry[] = [];
   private currentLanguage: LanguageCode = 'en';
   private isSimulatedOffline: boolean = false;
   private isDemoModeActive: boolean = false;
@@ -205,6 +269,7 @@ class LivestockGuardStore {
     this.offlineQueue = loadFromStorage(STORAGE_KEYS.OFFLINE_QUEUE, []) || [];
     this.fieldVisits = loadFromStorage(STORAGE_KEYS.FIELD_VISITS, SEED_FIELD_VISITS) || SEED_FIELD_VISITS;
     this.advisories = loadFromStorage(STORAGE_KEYS.ADVISORIES, SEED_ADVISORIES) || SEED_ADVISORIES;
+    this.labAuditLogs = loadFromStorage(STORAGE_KEYS.LAB_AUDIT_LOGS, SEED_LAB_AUDIT_LOGS) || SEED_LAB_AUDIT_LOGS;
     this.currentLanguage = loadFromStorage(STORAGE_KEYS.LANGUAGE, 'en') || 'en';
     this.isSimulatedOffline = loadFromStorage(STORAGE_KEYS.IS_OFFLINE, false) || false;
     this.isDemoModeActive = loadFromStorage(STORAGE_KEYS.DEMO_MODE, false) || false;
@@ -608,12 +673,11 @@ class LivestockGuardStore {
 
   public getScopedAnimals(): Animal[] {
     const role = this.currentUser?.role;
-    const allAnimals = this.animals || [];
+    const allAnimals = (this.animals || []).filter(
+      a => !(a as any).isDeleted && !(a as any).isArchived
+    );
     if (role === 'FARMER') {
-      return allAnimals.filter(
-        a => (this.currentUser?.farmId && a.farmId === this.currentUser?.farmId) ||
-             (this.currentUser?.name && a.ownerName === this.currentUser?.name)
-      );
+      return this.getFarmerAnimals(this.currentUser);
     }
     if (role === 'FIELD_WORKER') {
       return allAnimals.filter(
@@ -621,6 +685,39 @@ class LivestockGuardStore {
       );
     }
     return allAnimals;
+  }
+
+  /**
+   * Single Source of Truth for Farmer-scoped animals.
+   * Resolves animals strictly belonging to the specified farmer account or currently authenticated farmer.
+   */
+  public getFarmerAnimals(farmerUserOrId?: User | string): Animal[] {
+    const allAnimals = (this.animals || []).filter(
+      a => !(a as any).isDeleted && !(a as any).isArchived
+    );
+    let user = this.currentUser;
+    if (typeof farmerUserOrId === 'string') {
+      user = this.users.find(u => u.id === farmerUserOrId) || user;
+    } else if (farmerUserOrId) {
+      user = farmerUserOrId;
+    }
+    if (!user) return [];
+
+    return allAnimals.filter(a => {
+      // Direct ownerId match
+      if (user.id && a.ownerId === user.id) return true;
+      // Farm ID match
+      if (user.farmId && a.farmId === user.farmId) return true;
+      // Case-insensitive ownerName match
+      if (
+        user.name &&
+        a.ownerName &&
+        a.ownerName.trim().toLowerCase() === user.name.trim().toLowerCase()
+      ) {
+        return true;
+      }
+      return false;
+    });
   }
 
   public getScopedHerds(): Herd[] {
@@ -718,8 +815,18 @@ class LivestockGuardStore {
 
   // Mutations
   public registerAnimal(animalData: Omit<Animal, 'id' | 'registeredAt' | 'lastCheckedAt' | 'vaccinationCount'>): Animal {
+    const user = this.currentUser;
+    const resolvedOwnerId = animalData.ownerId || user?.id || 'usr_farmer_1';
+    const resolvedOwnerName = animalData.ownerName || user?.name || 'Ramesh Patil';
+    const resolvedFarmId = animalData.farmId || user?.farmId || 'farm_01';
+    const resolvedFarmName = animalData.farmName || user?.farmName || 'Patil Progressive Dairy Farm';
+
     const newAnimal: Animal = {
       ...animalData,
+      ownerId: resolvedOwnerId,
+      ownerName: resolvedOwnerName,
+      farmId: resolvedFarmId,
+      farmName: resolvedFarmName,
       id: `anm_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       registeredAt: new Date().toISOString().split('T')[0],
       lastCheckedAt: new Date().toISOString().split('T')[0],
@@ -749,6 +856,43 @@ class LivestockGuardStore {
 
     this.notify();
     return newAnimal;
+  }
+
+  public updateAnimal(id: string, updates: Partial<Animal>): Animal | undefined {
+    const animal = this.animals.find(a => a.id === id || a.tagNumber === id);
+    if (!animal) return undefined;
+
+    // Apply updates without changing id or registration date
+    Object.assign(animal, updates, {
+      lastCheckedAt: new Date().toISOString().split('T')[0]
+    });
+
+    saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
+    this.notify();
+    return animal;
+  }
+
+  public deleteAnimal(id: string): boolean {
+    const index = this.animals.findIndex(a => a.id === id || a.tagNumber === id);
+    if (index === -1) return false;
+
+    const removedAnimal = this.animals[index];
+    this.animals.splice(index, 1);
+    saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
+
+    // Update farm total
+    const farm = this.farms.find(f => f.id === removedAnimal.farmId);
+    if (farm && farm.totalAnimals > 0) {
+      farm.totalAnimals -= 1;
+      saveToStorage(STORAGE_KEYS.FARMS, this.farms);
+    }
+
+    this.notify();
+    return true;
+  }
+
+  public removeAnimal(id: string): boolean {
+    return this.deleteAnimal(id);
   }
 
   public registerTemporaryAnimal(animalData: Omit<TemporaryAnimal, 'id' | 'createdAt' | 'temporaryTag'> & { customTag?: string }): TemporaryAnimal {
@@ -1323,8 +1467,80 @@ class LivestockGuardStore {
       }
     }
 
+    // Laboratory RBAC Audit Logging
+    this.logLabAction({
+      action: 'SAMPLE_RESULT_UPDATED',
+      sampleId: sample.id,
+      sampleCode: sample.sampleCode,
+      caseId: sample.caseId,
+      caseNumber: sample.caseNumber,
+      previousValue: 'PENDING',
+      newValue: result,
+      details: `Diagnostic result certified: ${result} using ${sample.testRequested}. ${remarks ? `Remarks: ${remarks}` : ''}`
+    });
+
+    if (result === 'POSITIVE') {
+      this.logLabAction({
+        action: 'CONFIRMATION_STATUS_CHANGED',
+        sampleId: sample.id,
+        sampleCode: sample.sampleCode,
+        caseId: sample.caseId,
+        caseNumber: sample.caseNumber,
+        previousValue: 'SUSPECTED',
+        newValue: 'CONFIRMED',
+        details: `Official laboratory confirmation for ${sample.suspectedDiseaseName} in ${sample.species}. Escalated to District & State surveillance.`
+      });
+    }
+
     this.notify();
     return sample;
+  }
+
+  /**
+   * Get all immutable audit log entries for laboratory operations
+   */
+  public getLabAuditLogs(): LabAuditEntry[] {
+    return [...this.labAuditLogs];
+  }
+
+  /**
+   * Record a sensitive laboratory action in the RBAC audit trail
+   */
+  public logLabAction(entry: Omit<LabAuditEntry, 'id' | 'timestamp' | 'userId' | 'userName' | 'userRole'>): void {
+    const user = this.currentUser || { id: 'usr_lab_staff', name: 'Laboratory Staff', role: 'LABORATORY_STAFF' as Role };
+    const newLog: LabAuditEntry = {
+      id: `laud_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`,
+      timestamp: new Date().toISOString(),
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      ...entry
+    };
+
+    this.labAuditLogs.unshift(newLog);
+    if (this.labAuditLogs.length > 200) {
+      this.labAuditLogs = this.labAuditLogs.slice(0, 200);
+    }
+    saveToStorage(STORAGE_KEYS.LAB_AUDIT_LOGS, this.labAuditLogs);
+    this.notify();
+  }
+
+  /**
+   * Retrieve disease surveillance cases with least-privilege privacy filtering:
+   * Redacts farmer personal contact numbers and private identity for diagnostic laboratory operations.
+   */
+  public getLabSurveillanceCases(): Case[] {
+    return this.cases.map(c => {
+      return {
+        ...c,
+        ownerPhone: 'REDACTED (Data Privacy)',
+        ownerName: c.ownerName ? `${c.ownerName.split(' ')[0]} (Farm ${c.farmId || 'ID'})` : 'Confidential'
+      };
+    });
+  }
+
+  public getUsers(): User[] {
+    return this.getAllUsers();
   }
 
   public createMortalityReport(mortData: Omit<MortalityReport, 'id' | 'reportCode' | 'createdAt' | 'outbreakTriggered'>): MortalityReport {

@@ -13,7 +13,9 @@ export type SymptomSeverity = 'mild' | 'moderate' | 'severe';
 export type DiagnosisSource =
   | 'LAB_CONFIRMED'
   | 'VETERINARIAN_CONFIRMED'
+  | 'AUTHORIZED_SURVEILLANCE'
   | 'CLINICALLY_SUSPECTED'
+  | 'FARMER_REPORT'
   | 'UNVERIFIED'
   | 'PROTOTYPE_BENCHMARK'
   | 'clinical_suspected'
@@ -24,6 +26,17 @@ export type LabelQuality =
   | 'VALIDATED'
   | 'PROVISIONAL'
   | 'UNVERIFIED';
+
+export type DatasetCategory =
+  | 'REAL'
+  | 'SYNTHETIC'
+  | 'IMAGE'
+  | 'UNVERIFIED'
+  | 'BENCHMARK';
+
+export type DataModality =
+  | 'STRUCTURED'
+  | 'IMAGE_DATASET';
 
 export type DatasetStatus =
   | 'UPLOADED'
@@ -37,8 +50,10 @@ export type ModelLifecycleStatus =
   | 'DEVELOPMENT'
   | 'VALIDATION'
   | 'PENDING_REVIEW'
+  | 'APPROVED'
   | 'PRODUCTION_CANDIDATE'
   | 'PRODUCTION'
+  | 'REJECTED'
   | 'RETIRED'
   | 'PROTOTYPE'
   | 'UNAVAILABLE';
@@ -48,66 +63,102 @@ export type FeatureAvailability =
   | 'POST_DIAGNOSIS';
 
 /**
- * Standardized Health Record for Dataset Ingestion and Model Training
+ * Standardized Health Record for Dataset Ingestion and Model Training (Master Schema)
  */
 export interface DatasetRecord {
+  // Identity
   record_id: string;
   animal_id?: string;
   farm_id?: string;
   herd_id?: string;
+  case_id?: string;
   outbreak_id?: string;
+
+  // Animal
   species: Species;
   breed?: string;
   age_years?: number;
   sex?: 'MALE' | 'FEMALE' | 'UNKNOWN';
+  herd_size?: number;
+
+  // Location
+  country?: string;
   location_id?: string;
   state?: string;
   district?: string;
   subdistrict?: string;
+  block?: string;
   village?: string;
   latitude?: number;
   longitude?: number;
+  gps_accuracy?: number;
 
+  // Clinical
   symptoms: { symptom_id: string; severity?: SymptomSeverity }[];
   symptom_severity?: SymptomSeverity;
   symptom_duration_days?: number;
+  clinical_history?: string;
 
   previous_disease?: string[];
   previous_treatment?: string[];
 
+  // Vaccination
   vaccination_status?: 'UP_TO_DATE' | 'OVERDUE' | 'UNVACCINATED' | 'UNKNOWN';
+  vaccination_history?: string;
   last_vaccination_date?: string;
 
+  // Epidemiology
   affected_animals?: number;
+  unaffected_animals?: number;
   total_animals?: number;
-  herd_size?: number;
   mortality?: number;
   dead_count?: number;
 
   nearby_cases?: number;
   nearby_cases_10km?: number;
+  nearby_outbreaks?: number;
   distance_to_nearest_case_km?: number;
 
+  // Environment
   temperature?: number;
   temperature_c?: number;
+  temperature_environment?: number;
   humidity?: number;
   humidity_pct?: number;
   rainfall?: number;
   rainfall_mm?: number;
   season?: 'MONSOON' | 'POST_MONSOON' | 'WINTER' | 'SUMMER';
 
-  disease_label: string;
-  diagnosis_source: DiagnosisSource;
+  // Time
+  observation_date?: string;
   diagnosis_date?: string;
+  reporting_date?: string;
+
+  // Diagnostic
+  suspected_disease?: string;
+  disease_label: string;
+  original_disease_label?: string;
+  is_unmapped_disease?: boolean;
+  unmapped_reason?: string;
+  diagnosis_source: DiagnosisSource;
 
   lab_test?: 'RT_PCR' | 'ELISA' | 'BACTERIAL_CULTURE' | 'BLOOD_SMEAR_MICROSCOPY' | 'SEROLOGY' | 'ANTIGEN_RAPID' | 'NONE';
+  test_performed?: string;
   lab_result?: 'POSITIVE' | 'NEGATIVE' | 'INCONCLUSIVE' | 'PENDING';
+  test_result?: string;
+  confirmation_status?: 'CONFIRMED' | 'SUSPECTED' | 'DISPROVED';
 
   veterinarian_id?: string;
   laboratory_id?: string;
 
+  // Provenance
+  dataset_id?: string;
   data_source?: string;
   data_source_id?: string;
+  source_type?: string;
+  source_url?: string;
+  source_record_id?: string;
+  license?: string;
   label_quality?: LabelQuality;
   created_at?: string;
   timestamp?: string;
@@ -116,6 +167,14 @@ export interface DatasetRecord {
 // Backward compatibility alias
 export type RawHealthRecord = DatasetRecord;
 
+export interface RejectionAuditRecord {
+  recordId: string;
+  rejectionReason: string;
+  validationRule: string;
+  originalValue?: any;
+  correctedValue?: any;
+}
+
 /**
  * Dataset Provenance & Metadata
  */
@@ -123,7 +182,25 @@ export interface DatasetProvenance {
   dataset_id: string;
   dataset_name: string;
   source_organization: string;
-  source_type: 'GOVERNMENT_SURVEILLANCE' | 'VETERINARY_HOSPITAL' | 'DIAGNOSTIC_LAB' | 'RESEARCH_INSTITUTION' | 'UNIVERSITY' | 'BENCHMARK_PROTOTYPE';
+  source_type: 'KAGGLE' | 'WOAH_WAHIS' | 'FAO' | 'ICAR_GOVERNMENT' | 'VETERINARY_RECORDS' | 'DIAGNOSTIC_LAB' | 'FIELD_SURVEILLANCE' | 'SYNTHETIC' | 'BENCHMARK_PROTOTYPE' | 'GOVERNMENT_SURVEILLANCE' | 'VETERINARY_HOSPITAL' | 'RESEARCH_INSTITUTION' | 'UNIVERSITY';
+  source_url?: string;
+  license?: string;
+  download_date?: string;
+  version?: string;
+  description?: string;
+  original_file_name?: string;
+  original_record_count?: number;
+  processed_record_count?: number;
+  mapping_version?: string;
+  quality_status?: 'VALIDATED' | 'REQUIRES_REVIEW' | 'REJECTED';
+  approved_for_training?: boolean;
+  is_synthetic?: boolean;
+  dataset_category?: DatasetCategory;
+  data_modality?: DataModality;
+  image_dataset_reserve_note?: string; // e.g. "reserved_for_future_computer_vision_model"
+  unmapped_disease_count?: number;
+  unmapped_disease_labels?: string[];
+
   collection_period: {
     start_date: string;
     end_date: string;
@@ -179,12 +256,15 @@ export interface DataQualityReport {
   dataLeakageViolations: number;
   missingSpeciesCount?: number;
   missingDiseaseLabelCount?: number;
+  unmappedDiseaseCount?: number;
+  unmappedDiseaseLabels?: string[];
   invalidSymptomFormatCount?: number;
   missingRequiredFieldsCount?: number;
   invalidAgeCount?: number;
   invalidVaccinationCount?: number;
   schemaMismatchCount?: number;
   rejectionReasons?: Record<string, number>;
+  rejectionAuditLog?: RejectionAuditRecord[];
   classDistribution: Record<string, number>;
   labelQualityDistribution: Record<string, number>;
   isDatasetClean: boolean;
@@ -194,6 +274,95 @@ export interface DataQualityReport {
     reason: string;
     severity: 'WARNING' | 'ERROR';
   }[];
+}
+
+/**
+ * Feature Dictionary Definition for 54-Feature System
+ */
+export interface FeatureDictionaryEntry {
+  feature_name: string;
+  data_type: 'binary' | 'continuous' | 'ordinal' | 'categorical';
+  description: string;
+  source_field: string;
+  transformation: string;
+  allowed_values: string[] | string;
+  missing_policy: string;
+  used_for_training: boolean;
+}
+
+/**
+ * Feature Coverage Pre-Training Report
+ */
+export interface FeatureCoverageReport {
+  totalExpectedFeatures: number;
+  availableFeatures: string[];
+  missingFeatures: string[];
+  derivedFeatures: string[];
+  excludedFeatures: string[];
+  featureDictionary: FeatureDictionaryEntry[];
+}
+
+/**
+ * Comprehensive Reproducible Training Report (Requirement #30)
+ */
+export interface ComprehensiveTrainingReport {
+  reportId: string;
+  trainingTimestamp: string;
+  datasetMetadata: {
+    datasetId: string;
+    datasetName: string;
+    sourceOrganization: string;
+    sourceURL?: string;
+    sourceType: string;
+    license: string;
+    version: string;
+    isSynthetic: boolean;
+    datasetCategory: DatasetCategory;
+    totalRecordsImported: number;
+    validRecordsUsed: number;
+    rejectedRecordsCount: number;
+    unmappedDiseaseCount: number;
+  };
+  featureEngineeringSummary: {
+    totalFeatures: number;
+    availableCount: number;
+    derivedCount: number;
+    missingCount: number;
+    excludedCount: number;
+    featureNames: string[];
+  };
+  splitConfiguration: {
+    strategy: string;
+    trainCount: number;
+    testCount: number;
+    trainRatio: number;
+    groupKey?: string;
+  };
+  classDistribution: {
+    trainDistribution: Record<string, number>;
+    testDistribution: Record<string, number>;
+    imbalanceRatio: number;
+  };
+  hyperparameters: {
+    modelType: string;
+    numTrees: number;
+    maxDepth: number;
+    minSamplesSplit: number;
+    randomSeed?: number;
+  };
+  evaluationMetrics: EvaluationMetrics;
+  perClassEvaluation: Record<string, {
+    precision: number;
+    recall: number;
+    f1: number;
+    support: number;
+    truePositives: number;
+    falsePositives: number;
+    falseNegatives: number;
+  }>;
+  engineeringAcceptanceStatus: 'PASSED' | 'FLAGGED_FOR_REVIEW';
+  engineeringAcceptanceNote: string;
+  veterinaryValidationRequired: boolean;
 }
 
 /**
@@ -305,6 +474,7 @@ export interface CompleteModelPackage {
   preprocessor: PreprocessorConfig;
   targetClasses: string[];
   model: ModelArtifact;
+  trainingReport?: ComprehensiveTrainingReport;
 }
 
 /**

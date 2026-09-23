@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Animal, Species, HealthStatus, Farm, User, Case, VaccinationRecord, TreatmentRecord, LabSample, AnimalPhoto } from '../../types';
 import { store } from '../../services/store';
 import { Modal } from '../common/Modal';
@@ -31,18 +31,19 @@ import {
   ChevronRight,
   FileText,
   Edit3,
-  Camera
+  Camera,
+  Trash2
 } from 'lucide-react';
 
 interface AnimalsViewProps {
-  animals: Animal[];
+  animals?: Animal[];
   farms: Farm[];
   currentUser: User;
   onSelectAnimal?: (animal: Animal) => void;
 }
 
 export const AnimalsView: React.FC<AnimalsViewProps> = ({
-  animals,
+  animals: propAnimals,
   farms,
   currentUser,
   onSelectAnimal
@@ -55,6 +56,20 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
   const [selectedAnimalDetail, setSelectedAnimalDetail] = useState<Animal | null>(null);
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'SYMPTOMS' | 'PHOTOS' | 'VACCINATIONS' | 'TREATMENTS' | 'LABS' | 'TIMELINE'>('OVERVIEW');
 
+  // Single Source of Truth for Animals: reactive store subscription
+  const [storeAnimals, setStoreAnimals] = useState<Animal[]>(() => store.getScopedAnimals());
+
+  useEffect(() => {
+    const handleStoreUpdate = () => {
+      setStoreAnimals(store.getScopedAnimals());
+    };
+    handleStoreUpdate();
+    return store.subscribe(handleStoreUpdate);
+  }, [currentUser]);
+
+  // For FARMER, strictly use store.getScopedAnimals() to guarantee single source of truth parity with Farmer Dashboard
+  const animals = currentUser?.role === 'FARMER' ? storeAnimals : (propAnimals || storeAnimals);
+
   // New Animal Form State
   const [newTag, setNewTag] = useState('');
   const [newSpecies, setNewSpecies] = useState<Species>('Cattle');
@@ -63,10 +78,24 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
   const [newSex, setNewSex] = useState<'MALE' | 'FEMALE'>('FEMALE');
   const [newAge, setNewAge] = useState<number>(3.5);
   const [newWeight, setNewWeight] = useState<number>(380);
-  const [newFarmId, setNewFarmId] = useState<string>(farms?.[0]?.id || 'farm_01');
+  const [newFarmId, setNewFarmId] = useState<string>(currentUser?.farmId || farms?.[0]?.id || 'farm_01');
   const [isCustomLocationOpen, setIsCustomLocationOpen] = useState(false);
   const [customLocation, setCustomLocation] = useState<NormalizedLocationSelection | null>(null);
   const [registrationPhotos, setRegistrationPhotos] = useState<AnimalPhoto[]>([]);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+
+  // Edit Animal Form State
+  const [editingAnimal, setEditingAnimal] = useState<Animal | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editBreed, setEditBreed] = useState('');
+  const [editSex, setEditSex] = useState<'MALE' | 'FEMALE'>('FEMALE');
+  const [editAge, setEditAge] = useState<number>(3.5);
+  const [editWeight, setEditWeight] = useState<number>(380);
+  const [editHealthStatus, setEditHealthStatus] = useState<HealthStatus>('HEALTHY');
+  const [editPregnancyStatus, setEditPregnancyStatus] = useState<'NOT_PREGNANT' | 'PREGNANT' | 'LACTATING' | 'NOT_APPLICABLE'>('NOT_PREGNANT');
+
+  // Delete Animal Confirmation State
+  const [deletingAnimal, setDeletingAnimal] = useState<Animal | null>(null);
 
   // Context store queries for selected animal
   const cases = store.getCases() || [];
@@ -95,11 +124,12 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
   const handleRegisterAnimal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTag.trim()) {
-      alert('Please enter an ear tag number.');
+      setRegisterError('Please enter an ear tag number.');
       return;
     }
 
-    const farmObj = (farms || []).find(f => f.id === newFarmId);
+    const resolvedFarmId = currentUser?.farmId || newFarmId || farms?.[0]?.id || 'farm_01';
+    const farmObj = (farms || []).find(f => f.id === resolvedFarmId);
     const loc = customLocation || (farmObj ? {
       stateId: farmObj.stateId,
       districtId: farmObj.districtId,
@@ -112,20 +142,20 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
       tagNumber: newTag.trim().toUpperCase(),
       species: newSpecies,
       breed: newBreed,
-      name: newName || undefined,
+      name: newName.trim() || undefined,
       sex: newSex,
-      ageYears: newAge,
-      weightKg: newWeight,
+      ageYears: Number(newAge),
+      weightKg: Number(newWeight),
       pregnancyStatus: 'NOT_PREGNANT',
       currentHealthStatus: 'HEALTHY',
-      farmId: newFarmId,
-      farmName: farmObj?.name || 'Local Farm Unit',
-      ownerId: currentUser?.id || 'usr_farmer_01',
-      ownerName: currentUser?.name || 'Farmer',
-      stateId: loc?.stateId || farmObj?.stateId || 'st_in_mh',
-      districtId: loc?.districtId || farmObj?.districtId || 'dt_in_mh_pune',
-      blockId: loc?.subDistrictId || farmObj?.blockId || 'sd_in_mh_pune_baramati',
-      villageId: loc?.villageId || farmObj?.villageId || 'vl_in_mh_pune_baramati_malegaon_bk',
+      farmId: resolvedFarmId,
+      farmName: currentUser?.farmName || farmObj?.name || 'Local Farm Unit',
+      ownerId: currentUser?.id || 'usr_farmer_1',
+      ownerName: currentUser?.name || 'Ramesh Patil',
+      stateId: loc?.stateId || farmObj?.stateId || currentUser?.stateId || 'st_mah',
+      districtId: loc?.districtId || farmObj?.districtId || currentUser?.districtId || 'dt_pune',
+      blockId: loc?.subDistrictId || farmObj?.blockId || currentUser?.blockId || 'bk_baramati',
+      villageId: loc?.villageId || farmObj?.villageId || currentUser?.villageId || 'vl_malegaon_bk',
       latitude: loc?.coordinates?.latitude || farmObj?.latitude || 18.1524,
       longitude: loc?.coordinates?.longitude || farmObj?.longitude || 74.5768,
       photos: registrationPhotos
@@ -134,9 +164,50 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
     setIsRegisterModalOpen(false);
     setNewTag('');
     setNewName('');
+    setRegisterError(null);
     setRegistrationPhotos([]);
     setIsCustomLocationOpen(false);
     setCustomLocation(null);
+  };
+
+  const handleStartEdit = (animal: Animal) => {
+    setEditingAnimal(animal);
+    setEditName(animal.name || '');
+    setEditBreed(animal.breed || '');
+    setEditSex(animal.sex || 'FEMALE');
+    setEditAge(animal.ageYears || 3.5);
+    setEditWeight(animal.weightKg || 350);
+    setEditHealthStatus(animal.currentHealthStatus || 'HEALTHY');
+    setEditPregnancyStatus(animal.pregnancyStatus || 'NOT_PREGNANT');
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAnimal) return;
+
+    const updated = store.updateAnimal(editingAnimal.id, {
+      name: editName.trim() || undefined,
+      breed: editBreed.trim() || editingAnimal.breed,
+      sex: editSex,
+      ageYears: Number(editAge),
+      weightKg: Number(editWeight),
+      currentHealthStatus: editHealthStatus,
+      pregnancyStatus: editPregnancyStatus
+    });
+
+    if (updated && selectedAnimalDetail?.id === updated.id) {
+      setSelectedAnimalDetail(updated);
+    }
+    setEditingAnimal(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletingAnimal) return;
+    store.deleteAnimal(deletingAnimal.id);
+    if (selectedAnimalDetail?.id === deletingAnimal.id) {
+      setSelectedAnimalDetail(null);
+    }
+    setDeletingAnimal(null);
   };
 
   const getStatusColor = (status: HealthStatus) => {
@@ -312,15 +383,31 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
                       {animal.vaccinationCount} Doses
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          setSelectedAnimalDetail(animal);
-                        }}
-                        className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
-                      >
-                        View Profile →
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => setSelectedAnimalDetail(animal)}
+                          className="px-2.5 py-1 text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                          title="View Animal Passport"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => handleStartEdit(animal)}
+                          className="px-2 py-1 text-xs font-bold text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Edit Animal Details"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setDeletingAnimal(animal)}
+                          className="px-2 py-1 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Remove Animal from Herd"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -339,6 +426,12 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
         maxWidth="xl"
       >
         <form onSubmit={handleRegisterAnimal} className="space-y-4">
+          {registerError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+              <span>{registerError}</span>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -766,12 +859,210 @@ export const AnimalsView: React.FC<AnimalsViewProps> = ({
               </div>
             )}
 
-            <div className="flex justify-end pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedAnimalDetail) handleStartEdit(selectedAnimalDetail);
+                  }}
+                  className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedAnimalDetail) setDeletingAnimal(selectedAnimalDetail);
+                  }}
+                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Remove Animal
+                </button>
+              </div>
+
               <button
                 onClick={() => setSelectedAnimalDetail(null)}
                 className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer"
               >
                 Close Animal Passport
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Animal Modal */}
+      {editingAnimal && (
+        <Modal
+          isOpen={!!editingAnimal}
+          onClose={() => setEditingAnimal(null)}
+          title={`Edit Animal: ${editingAnimal.tagNumber}`}
+          subtitle="Update livestock registry information without altering unique identification tag"
+          maxWidth="lg"
+        >
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Animal Name / Identifier</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="e.g. Gauri, Lakshmi"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Breed *</label>
+                <input
+                  type="text"
+                  required
+                  value={editBreed}
+                  onChange={e => setEditBreed(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Sex *</label>
+                <select
+                  value={editSex}
+                  onChange={e => setEditSex(e.target.value as 'MALE' | 'FEMALE')}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white"
+                >
+                  <option value="FEMALE">Female</option>
+                  <option value="MALE">Male</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Age (Years) *</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.1"
+                  required
+                  value={editAge}
+                  onChange={e => setEditAge(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Weight (kg) *</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  required
+                  value={editWeight}
+                  onChange={e => setEditWeight(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Current Health Status *</label>
+                <select
+                  value={editHealthStatus}
+                  onChange={e => setEditHealthStatus(e.target.value as HealthStatus)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white"
+                >
+                  <option value="HEALTHY">Healthy</option>
+                  <option value="UNDER_OBSERVATION">Under Observation</option>
+                  <option value="AFFECTED">Affected (Sick)</option>
+                  <option value="RECOVERED">Recovered</option>
+                  <option value="DECEASED">Deceased</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Reproductive / Lactation Status</label>
+                <select
+                  value={editPregnancyStatus}
+                  onChange={e => setEditPregnancyStatus(e.target.value as any)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white"
+                >
+                  <option value="NOT_PREGNANT">Not Pregnant</option>
+                  <option value="PREGNANT">Pregnant</option>
+                  <option value="LACTATING">Lactating</option>
+                  <option value="NOT_APPLICABLE">Not Applicable</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setEditingAnimal(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-md shadow-blue-700/20 transition-all cursor-pointer"
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Remove Animal Confirmation Modal */}
+      {deletingAnimal && (
+        <Modal
+          isOpen={!!deletingAnimal}
+          onClose={() => setDeletingAnimal(null)}
+          title="Remove Animal from Herd"
+          subtitle="Confirm removal from active herd registry"
+          maxWidth="md"
+        >
+          <div className="space-y-4">
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-2">
+              <div className="flex items-center gap-2 text-rose-900 font-bold text-xs">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Are you sure you want to remove this animal?</span>
+              </div>
+              <p className="text-xs text-rose-700">
+                Removing <strong className="font-mono">{deletingAnimal.tagNumber}</strong> {deletingAnimal.name ? `(${deletingAnimal.name})` : ''} will immediately update your herd inventory on both the Dashboard and My Animals registry.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Species & Breed:</span>
+                <span className="font-bold text-slate-800">{deletingAnimal.species} ({deletingAnimal.breed})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Holding Farm:</span>
+                <span className="font-semibold text-slate-800">{deletingAnimal.farmName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Current Health:</span>
+                <span className="font-semibold text-slate-800">{deletingAnimal.currentHealthStatus}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setDeletingAnimal(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-md shadow-rose-700/20 transition-all cursor-pointer"
+              >
+                Confirm Remove
               </button>
             </div>
           </div>

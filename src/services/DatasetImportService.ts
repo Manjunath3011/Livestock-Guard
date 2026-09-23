@@ -4,11 +4,13 @@ import {
   DataQualityReport,
   DatasetStatus,
   DiagnosisSource,
-  LabelQuality
+  LabelQuality,
+  DatasetCategory,
+  DataModality
 } from '../ml/types';
 import { DataQualityValidator } from '../ml/dataQuality';
-import { deriveLabelQuality } from '../ml/datasetSchema';
-import { Species } from '../types';
+import { normalizeDatasetRecord } from '../ml/schemaNormalizer';
+import { LEGITIMATE_DEFAULT_DATASETS } from '../data/legitimateDatasets';
 
 const DATASETS_STORAGE_KEY = 'lg_imported_datasets';
 
@@ -29,6 +31,7 @@ export class DatasetImportService {
 
   constructor() {
     this.loadDatasets();
+    this.ensureDefaultDatasets();
   }
 
   private loadDatasets(): void {
@@ -43,6 +46,27 @@ export class DatasetImportService {
     } catch (e) {
       console.warn('Could not load imported datasets from localStorage', e);
       this.datasets = [];
+    }
+  }
+
+  /**
+   * Automatically seed default legitimate real-world & Kaggle datasets if not present
+   */
+  public ensureDefaultDatasets(): void {
+    let modified = false;
+    for (const def of LEGITIMATE_DEFAULT_DATASETS) {
+      const exists = this.datasets.some(d => d.dataset_id === def.provenance.dataset_id);
+      if (!exists) {
+        const prov: DatasetProvenance = {
+          ...def.provenance,
+          rawData: def.records || []
+        };
+        this.datasets.push(prov);
+        modified = true;
+      }
+    }
+    if (modified) {
+      this.saveDatasets();
     }
   }
 
@@ -75,9 +99,9 @@ export class DatasetImportService {
     if (format === 'json') {
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed)) {
-        return parsed.map((item, idx) => this.normalizeRecord(item, idx));
+        return parsed.map((item, idx) => normalizeDatasetRecord(item, idx));
       } else if (parsed.records && Array.isArray(parsed.records)) {
-        return parsed.records.map((item: any, idx: number) => this.normalizeRecord(item, idx));
+        return parsed.records.map((item: any, idx: number) => normalizeDatasetRecord(item, idx));
       }
       throw new Error('Invalid JSON structure: Expected an array of records or an object with a "records" array.');
     } else {
@@ -98,71 +122,10 @@ export class DatasetImportService {
           obj[h] = values[colIdx] !== undefined ? values[colIdx] : '';
         });
 
-        records.push(this.normalizeRecord(obj, i));
+        records.push(normalizeDatasetRecord(obj, i));
       }
       return records;
     }
-  }
-
-  /**
-   * Standardize and normalize diverse field inputs
-   */
-  private normalizeRecord(raw: any, index: number): DatasetRecord {
-    // Standardize Symptoms
-    let symptoms: { symptom_id: string; severity?: 'mild' | 'moderate' | 'severe' }[] = [];
-    if (Array.isArray(raw.symptoms)) {
-      symptoms = raw.symptoms.map((s: any) => {
-        if (typeof s === 'string') return { symptom_id: s.trim(), severity: 'moderate' };
-        return { symptom_id: s.symptom_id || s.id || '', severity: s.severity || 'moderate' };
-      }).filter((s: any) => s.symptom_id);
-    } else if (typeof raw.symptoms === 'string' && raw.symptoms.trim() !== '') {
-      symptoms = raw.symptoms.split(/;|\|/).map((s: string) => {
-        const parts = s.trim().split(':');
-        return {
-          symptom_id: parts[0].trim(),
-          severity: (parts[1] as any) || 'moderate'
-        };
-      }).filter((s: any) => s.symptom_id);
-    }
-
-    const diagnosisSource: DiagnosisSource = (raw.diagnosis_source || raw.source_type || 'UNVERIFIED').toUpperCase();
-    const labelQuality: LabelQuality = raw.label_quality || deriveLabelQuality(diagnosisSource);
-
-    return {
-      record_id: raw.record_id || `rec_${Date.now()}_${index}`,
-      animal_id: raw.animal_id || raw.animal_tag || `anm_${index}`,
-      farm_id: raw.farm_id || `farm_${Math.floor(index / 3)}`,
-      outbreak_id: raw.outbreak_id,
-      species: (raw.species || 'Cattle') as Species,
-      breed: raw.breed,
-      age_years: raw.age_years !== undefined ? Number(raw.age_years) : (raw.age ? Number(raw.age) : undefined),
-      sex: raw.sex ? raw.sex.toUpperCase() : 'UNKNOWN',
-      state: raw.state || raw.state_id,
-      district: raw.district || raw.district_id,
-      subdistrict: raw.subdistrict || raw.block,
-      village: raw.village,
-      symptoms,
-      symptom_duration_days: raw.symptom_duration_days !== undefined ? Number(raw.symptom_duration_days) : (raw.duration ? Number(raw.duration) : undefined),
-      vaccination_status: raw.vaccination_status ? raw.vaccination_status.toUpperCase() : 'UNKNOWN',
-      last_vaccination_date: raw.last_vaccination_date,
-      affected_animals: raw.affected_animals !== undefined ? Number(raw.affected_animals) : (raw.affected ? Number(raw.affected) : 1),
-      total_animals: raw.total_animals !== undefined ? Number(raw.total_animals) : (raw.total_herd ? Number(raw.total_herd) : 10),
-      mortality: raw.mortality !== undefined ? Number(raw.mortality) : (raw.dead_count ? Number(raw.dead_count) : 0),
-      nearby_cases: raw.nearby_cases !== undefined ? Number(raw.nearby_cases) : (raw.nearby_cases_10km ? Number(raw.nearby_cases_10km) : 0),
-      distance_to_nearest_case_km: raw.distance_to_nearest_case_km !== undefined ? Number(raw.distance_to_nearest_case_km) : undefined,
-      temperature: raw.temperature !== undefined ? Number(raw.temperature) : (raw.temp ? Number(raw.temp) : undefined),
-      humidity: raw.humidity !== undefined ? Number(raw.humidity) : (raw.humidity_pct ? Number(raw.humidity_pct) : undefined),
-      rainfall: raw.rainfall !== undefined ? Number(raw.rainfall) : (raw.rainfall_mm ? Number(raw.rainfall_mm) : undefined),
-      season: raw.season ? raw.season.toUpperCase() : 'MONSOON',
-      disease_label: raw.disease_label || raw.diagnosis || raw.disease_id || '',
-      diagnosis_source: diagnosisSource,
-      diagnosis_date: raw.diagnosis_date || raw.date,
-      lab_test: raw.lab_test,
-      lab_result: raw.lab_result ? raw.lab_result.toUpperCase() : undefined,
-      label_quality: labelQuality,
-      data_source: raw.data_source || raw.source_organization || 'Uploaded Clinical Feed',
-      created_at: raw.created_at || new Date().toISOString()
-    };
   }
 
   /**
@@ -171,7 +134,15 @@ export class DatasetImportService {
   public importDataset(params: {
     datasetName: string;
     sourceOrganization: string;
+    sourceURL?: string;
     sourceType: DatasetProvenance['source_type'];
+    license?: string;
+    version?: string;
+    description?: string;
+    originalFileName?: string;
+    isSynthetic?: boolean;
+    datasetCategory?: DatasetCategory;
+    dataModality?: DataModality;
     rawContent: string;
     format: 'json' | 'csv';
     uploadedBy: string;
@@ -179,6 +150,71 @@ export class DatasetImportService {
     collectionEndDate?: string;
   }): DatasetImportResult {
     try {
+      const isImage = params.dataModality === 'IMAGE_DATASET' || params.datasetCategory === 'IMAGE';
+
+      if (isImage) {
+        // Image Dataset registration
+        const datasetId = `ds_img_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const provenance: DatasetProvenance = {
+          dataset_id: datasetId,
+          dataset_name: params.datasetName,
+          source_organization: params.sourceOrganization,
+          source_type: params.sourceType,
+          source_url: params.sourceURL,
+          license: params.license || 'CC-BY-4.0',
+          download_date: new Date().toISOString().split('T')[0],
+          version: params.version || '1.0.0',
+          description: params.description || 'Photographic image dataset reserved for future Computer Vision models.',
+          original_file_name: params.originalFileName || 'image_archive.zip',
+          original_record_count: 0,
+          processed_record_count: 0,
+          mapping_version: 'vision-v1.0',
+          quality_status: 'VALIDATED',
+          approved_for_training: false, // NOT for Random Forest
+          is_synthetic: params.isSynthetic || false,
+          dataset_category: 'IMAGE',
+          data_modality: 'IMAGE_DATASET',
+          image_dataset_reserve_note: 'reserved_for_future_computer_vision_model',
+          collection_period: {
+            start_date: params.collectionStartDate || new Date().toISOString().split('T')[0],
+            end_date: params.collectionEndDate || new Date().toISOString().split('T')[0]
+          },
+          geographic_coverage: {
+            states: ['Surveillance Field Locations'],
+            districts: ['Image Collection Units']
+          },
+          number_of_records: 0,
+          number_of_animals: 0,
+          number_of_farms: 0,
+          number_of_disease_classes: 0,
+          label_quality_breakdown: {
+            gold_standard: 0,
+            validated: 0,
+            provisional: 0,
+            unverified: 0
+          },
+          created_at: new Date().toISOString(),
+          uploaded_by: params.uploadedBy,
+          approval_status: 'UPLOADED',
+          notes: [
+            'IMAGE_DATASET: Photographic dataset reserved for future Computer Vision model.',
+            'Cannot be used in Random Forest structured tabular training pipeline.'
+          ],
+          rawData: []
+        };
+
+        this.datasets.unshift(provenance);
+        this.saveDatasets();
+
+        return {
+          success: true,
+          datasetId,
+          provenance,
+          previewRows: []
+        };
+      }
+
+      // Structured Dataset parsing & validation
       const records = this.parseRawInput(params.rawContent, params.format);
       if (records.length === 0) {
         return { success: false, error: 'Dataset is empty or could not be parsed.' };
@@ -194,12 +230,31 @@ export class DatasetImportService {
       const uniqueAnimals = new Set(records.map(r => r.animal_id).filter(Boolean)).size;
       const uniqueFarms = new Set(records.map(r => r.farm_id).filter(Boolean)).size;
 
-      const datasetId = `ds_real_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const isSynthetic = params.isSynthetic || params.sourceType === 'SYNTHETIC' || params.datasetCategory === 'SYNTHETIC';
+      const category: DatasetCategory = isSynthetic ? 'SYNTHETIC' : (params.datasetCategory || 'REAL');
+      const datasetId = `ds_${category.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
       const provenance: DatasetProvenance = {
         dataset_id: datasetId,
         dataset_name: params.datasetName,
         source_organization: params.sourceOrganization,
         source_type: params.sourceType,
+        source_url: params.sourceURL,
+        license: params.license || (isSynthetic ? 'Development Testing Use' : 'CC0 / Public Open Veterinary Data'),
+        download_date: new Date().toISOString().split('T')[0],
+        version: params.version || '1.0.0',
+        description: params.description || `Ingested dataset containing ${records.length} livestock epidemiological records.`,
+        original_file_name: params.originalFileName || (params.format === 'csv' ? 'dataset.csv' : 'dataset.json'),
+        original_record_count: records.length,
+        processed_record_count: cleanRecords.length,
+        mapping_version: 'schema-v2.0',
+        quality_status: report.isDatasetClean ? 'VALIDATED' : 'REQUIRES_REVIEW',
+        approved_for_training: report.isDatasetClean && !isSynthetic,
+        is_synthetic: isSynthetic,
+        dataset_category: category,
+        data_modality: 'STRUCTURED',
+        unmapped_disease_count: report.unmappedDiseaseCount,
+        unmapped_disease_labels: report.unmappedDiseaseLabels,
         collection_period: {
           start_date: params.collectionStartDate || new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0],
           end_date: params.collectionEndDate || new Date().toISOString().split('T')[0]
@@ -220,8 +275,11 @@ export class DatasetImportService {
         },
         created_at: new Date().toISOString(),
         uploaded_by: params.uploadedBy,
-        approval_status: report.isDatasetClean ? 'VALIDATED' : 'UPLOADED',
-        notes: report.notes,
+        approval_status: report.isDatasetClean ? (isSynthetic ? 'UPLOADED' : 'APPROVED_FOR_TRAINING') : 'UPLOADED',
+        notes: [
+          ...report.notes,
+          isSynthetic ? 'MARKED AS SYNTHETIC: Not for real-world accuracy claims.' : 'REAL-WORLD STRUCTURED SURVEILLANCE'
+        ],
         rawData: cleanRecords
       };
 
@@ -259,6 +317,7 @@ export class DatasetImportService {
     if (status === 'APPROVED_FOR_TRAINING') {
       ds.approved_by = adminUser;
       ds.approval_date = new Date().toISOString();
+      ds.approved_for_training = true;
     }
     if (notes) {
       ds.notes = ds.notes || [];
@@ -270,3 +329,4 @@ export class DatasetImportService {
 }
 
 export const datasetImportService = new DatasetImportService();
+

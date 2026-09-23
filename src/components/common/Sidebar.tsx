@@ -129,9 +129,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'reports_analytics',
-      label: t.reportsAnalytics || 'Reports & Analytics',
+      label: (canonicalRole === 'LABORATORY_STAFF' || canonicalRole === 'DIAGNOSTIC_LAB')
+        ? (t.reportsAnalytics || 'Government Reports')
+        : canonicalRole === 'DISTRICT_OFFICIAL'
+        ? 'District Reports'
+        : canonicalRole === 'STATE_ADMIN'
+        ? (t.reportsAnalytics || 'Government Reports')
+        : t.reportsAnalytics || 'Reports & Analytics',
       icon: FileText,
-      roles: ['DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
+      roles: ['LABORATORY_STAFF', 'DIAGNOSTIC_LAB', 'VETERINARIAN', 'FIELD_WORKER', 'DISTRICT_OFFICIAL', 'STATE_ADMIN', 'SYSTEM_ADMIN']
     },
     {
       id: 'knowledge_base',

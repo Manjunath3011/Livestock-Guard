@@ -33,6 +33,20 @@ export const SEED_USERS: User[] = [
     preferredLanguage: 'en'
   },
   {
+    id: 'usr_farmer_3',
+    name: 'Mahadev Jadhav',
+    email: 'mahadev.farmer@livestockguard.gov.in',
+    phone: '+91 98220 55668',
+    role: 'FARMER',
+    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+    stateId: 'st_mah',
+    districtId: 'dt_satara',
+    blockId: 'bk_karad',
+    villageId: 'vl_vithalwadi',
+    farmId: 'farm_03',
+    preferredLanguage: 'mr'
+  },
+  {
     id: 'usr_field_worker_1',
     name: 'Sunita Gaikwad',
     email: 'fieldworker@livestockguard.gov.in',
