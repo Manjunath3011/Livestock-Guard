@@ -152,6 +152,45 @@ export const DemoRoleSwitcher: React.FC<DemoRoleSwitcherProps> = ({
               </div>
             </div>
 
+            {/* If FARMER role is active, allow quick switching between the 3 test farmers */}
+            {currentUser.role === 'FARMER' && (
+              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                  <span>Switch Test Farmer</span>
+                  <span className="font-mono">ISOLATION TEST</span>
+                </div>
+                <div className="space-y-1">
+                  {[
+                    { id: 'usr_farmer_1', name: 'Ramesh Patil', location: 'Baramati, Pune', herds: 'HRD-PUN-01, HRD-PUN-02' },
+                    { id: 'usr_farmer_3', name: 'Mahadev Jadhav', location: 'Karad, Satara', herds: 'HRD-SAT-01' },
+                    { id: 'usr_farmer_5', name: 'Basavaraj Patil', location: 'Nippani, Belagavi', herds: 'HRD-BEL-01' }
+                  ].map(f => {
+                    const isSelected = currentUser.id === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          store.loginAsUser(f.id);
+                          setIsAuthMenuOpen(false);
+                        }}
+                        className={`w-full text-left p-1.5 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white font-bold'
+                            : 'hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-bold">{f.name}</div>
+                          <div className={`text-[10px] ${isSelected ? 'text-emerald-100' : 'text-slate-500'}`}>{f.location} • {f.herds}</div>
+                        </div>
+                        {isSelected && <BadgeCheck className="w-4 h-4 text-white shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Switch to Sandbox Testing */}
             <button
               onClick={() => {
@@ -333,6 +372,41 @@ export const DemoRoleSwitcher: React.FC<DemoRoleSwitcherProps> = ({
               );
             })}
           </div>
+
+          {/* Test Farmer Isolation Quick Switcher in Demo Mode */}
+          {currentUser.role === 'FARMER' && (
+            <div className="mt-2 p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-1">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 px-1">
+                Active Test Farmer Profile:
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  { id: 'usr_farmer_1', short: 'Ramesh', herds: '2 Herds' },
+                  { id: 'usr_farmer_3', short: 'Mahadev', herds: '1 Herd' },
+                  { id: 'usr_farmer_5', short: 'Basavaraj', herds: '1 Herd' }
+                ].map(f => {
+                  const isSel = currentUser.id === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => {
+                        store.loginAsUser(f.id);
+                        setIsOpen(false);
+                      }}
+                      className={`px-2 py-1.5 rounded-lg text-center text-xs transition-colors cursor-pointer ${
+                        isSel
+                          ? 'bg-emerald-600 text-white font-black shadow-xs'
+                          : 'bg-white dark:bg-slate-800 hover:bg-emerald-100 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <div className="font-bold">{f.short}</div>
+                      <div className={`text-[9px] ${isSel ? 'text-emerald-100' : 'text-slate-400'}`}>{f.herds}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Footer Actions */}
           <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 px-2 py-1 flex items-center justify-between text-[11px]">

@@ -83,6 +83,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       accentColor: 'border-emerald-500 hover:border-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
     },
     {
+      role: 'FARMER',
+      name: 'Basavaraj Patil (Farmer C)',
+      title: 'Goat & Sheep Breeder (Nippani, Belagavi)',
+      email: 'basavaraj.farmer@livestockguard.gov.in',
+      phone: '9448056789',
+      icon: '👨🌾',
+      badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300',
+      accentColor: 'border-emerald-500 hover:border-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
+    },
+    {
       role: 'FIELD_WORKER',
       name: 'Sunita Gaikwad',
       title: 'Field Worker / Para-Vet Officer',
@@ -519,7 +529,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleQuickLogin(acc.role);
+                          handleQuickLogin(acc);
                         }}
                         className="w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-slate-800 dark:hover:bg-emerald-600 text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-2xs"
                       >

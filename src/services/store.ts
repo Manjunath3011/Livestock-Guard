@@ -203,6 +203,150 @@ function saveToStorage<T>(key: string, data: T): void {
   }
 }
 
+export interface HerdStatistics {
+  total: number;
+  healthy: number;
+  affected: number;
+  other: number;
+  deceased: number;
+  recovered: number;
+  linkedAnimalCount: number;
+  displayBreakdown: string;
+}
+
+/**
+ * Universal calculation of herd statistics from actual animal records and cases.
+ * Total Animals = Healthy + Affected + Other/Unknown
+ */
+export function calculateHerdStatistics(
+  herd: Herd,
+  allAnimals: Animal[],
+  allCases: Case[]
+): HerdStatistics {
+  if (!herd) {
+    return {
+      total: 0,
+      healthy: 0,
+      affected: 0,
+      other: 0,
+      deceased: 0,
+      recovered: 0,
+      linkedAnimalCount: 0,
+      displayBreakdown: '0 / 0 / 0'
+    };
+  }
+
+  // 1. Identify active animals belonging to this herd
+  const herdAnimals = (allAnimals || []).filter(a => {
+    if ((a as any).isDeleted || (a as any).isArchived) return false;
+    return a.herdId === herd.id || a.herdId === herd.herdCode || (a as any).herdCode === herd.herdCode;
+  });
+
+  // If no individual animals are linked in database, fallback to recorded herd fields
+  if (herdAnimals.length === 0) {
+    const total = herd.totalAnimals || 0;
+    const affected = herd.affectedCount || 0;
+    const healthy = herd.healthyCount || 0;
+    const other = herd.underObservationCount || Math.max(0, total - healthy - affected);
+    const deceased = herd.deathCount || 0;
+    const recovered = herd.recoveredCount || 0;
+    const display = other > 0
+      ? `${total} / ${healthy} / ${affected} / ${other}`
+      : `${total} / ${healthy} / ${affected}`;
+
+    return {
+      total,
+      healthy,
+      affected,
+      other,
+      deceased,
+      recovered,
+      linkedAnimalCount: 0,
+      displayBreakdown: display
+    };
+  }
+
+  // 2. Active, valid disease cases
+  // Exclude duplicate/closed/resolved/ruled out cases
+  const activeCases = (allCases || []).filter(c =>
+    c.status !== 'RESOLVED' &&
+    c.status !== 'RULED_OUT' &&
+    c.status !== 'CLOSED' &&
+    (c as any).status !== 'DISMISSED'
+  );
+
+  const animalIdsWithActiveCase = new Set<string>();
+  activeCases.forEach(c => {
+    if (c.animalId) animalIdsWithActiveCase.add(c.animalId);
+  });
+
+  let healthyCount = 0;
+  let affectedCount = 0;
+  let otherCount = 0;
+  let deceasedCount = 0;
+  let recoveredCount = 0;
+
+  herdAnimals.forEach(a => {
+    if (a.currentHealthStatus === 'DECEASED') {
+      deceasedCount++;
+      return;
+    }
+
+    // A. Affected Check:
+    // Animals with a currently active, valid disease case OR explicitly assigned affected health status.
+    // Count each animal only once.
+    const hasActiveCase = animalIdsWithActiveCase.has(a.id) || (a.activeCaseId && activeCases.some(c => c.id === a.activeCaseId));
+    const isExplicitlyAffected =
+      a.currentHealthStatus === 'AFFECTED' ||
+      (a.currentHealthStatus as string) === 'SICK' ||
+      (a.currentHealthStatus as string) === 'INFECTED' ||
+      (a.currentHealthStatus as string) === 'CRITICAL' ||
+      (a.currentHealthStatus as string) === 'QUARANTINED';
+
+    if (hasActiveCase || isExplicitlyAffected) {
+      affectedCount++;
+      return;
+    }
+
+    // B. Other / Unknown / Pending Check:
+    // Animals with unknown, pending or unverified health status
+    const isUnknownOrPending =
+      (a.currentHealthStatus as string) === 'UNKNOWN' ||
+      (a.currentHealthStatus as string) === 'PENDING' ||
+      (a.currentHealthStatus as string) === 'UNVERIFIED' ||
+      (a as any).isUnverified === true;
+
+    if (isUnknownOrPending) {
+      otherCount++;
+      return;
+    }
+
+    if (a.currentHealthStatus === 'RECOVERED') {
+      recoveredCount++;
+    }
+
+    // C. Healthy Check:
+    // Animals explicitly marked healthy or with no active disease case
+    healthyCount++;
+  });
+
+  const totalHead = herdAnimals.filter(a => a.currentHealthStatus !== 'DECEASED').length;
+  const display = otherCount > 0
+    ? `${totalHead} / ${healthyCount} / ${affectedCount} / ${otherCount}`
+    : `${totalHead} / ${healthyCount} / ${affectedCount}`;
+
+  return {
+    total: totalHead,
+    healthy: healthyCount,
+    affected: affectedCount,
+    other: otherCount,
+    deceased: deceasedCount,
+    recovered: recoveredCount,
+    linkedAnimalCount: herdAnimals.length,
+    displayBreakdown: display
+  };
+}
+
 class LivestockGuardStore {
   private users: User[] = [];
   private currentUser: User = SEED_USERS[0];
@@ -241,9 +385,60 @@ class LivestockGuardStore {
       ...u,
       accountStatus: u.accountStatus || 'VERIFIED'
     }));
+
+    // Ensure all seed users (especially all demo farmers) exist in this.users
+    SEED_USERS.forEach(su => {
+      const idx = this.users.findIndex(u => u.id === su.id || u.email === su.email);
+      if (idx === -1) {
+        this.users.push({ ...su, accountStatus: 'VERIFIED' });
+      } else {
+        this.users[idx] = {
+          ...this.users[idx],
+          farmId: this.users[idx].farmId || su.farmId,
+          farmName: this.users[idx].farmName || su.farmName,
+          village: this.users[idx].village || su.village
+        };
+      }
+    });
+
     this.farms = loadFromStorage(STORAGE_KEYS.FARMS, SEED_FARMS) || SEED_FARMS;
+    // Migrate farms to ensure correct ownerId linkage
+    SEED_FARMS.forEach(sf => {
+      const fIdx = this.farms.findIndex(f => f.id === sf.id);
+      if (fIdx === -1) {
+        this.farms.push({ ...sf });
+      } else {
+        this.farms[fIdx].ownerId = sf.ownerId;
+        this.farms[fIdx].ownerName = sf.ownerName;
+      }
+    });
+
     this.herds = loadFromStorage(STORAGE_KEYS.HERDS, SEED_HERDS) || SEED_HERDS;
+    // Migrate herds to ensure strict ownership and farm linkage
+    SEED_HERDS.forEach(sh => {
+      const hIdx = this.herds.findIndex(h => h.id === sh.id || h.herdCode === sh.herdCode);
+      if (hIdx === -1) {
+        this.herds.push({ ...sh });
+      } else {
+        this.herds[hIdx].ownerId = sh.ownerId;
+        this.herds[hIdx].ownerName = sh.ownerName;
+        this.herds[hIdx].farmId = sh.farmId;
+      }
+    });
+
     this.animals = loadFromStorage(STORAGE_KEYS.ANIMALS, SEED_ANIMALS) || SEED_ANIMALS;
+    // Migrate animals to ensure strict ownership, farm, and herd linkage
+    SEED_ANIMALS.forEach(sa => {
+      const aIdx = this.animals.findIndex(a => a.id === sa.id);
+      if (aIdx === -1) {
+        this.animals.push({ ...sa });
+      } else {
+        this.animals[aIdx].ownerId = sa.ownerId;
+        this.animals[aIdx].farmId = sa.farmId;
+        this.animals[aIdx].herdId = sa.herdId;
+      }
+    });
+
     this.temporaryAnimals = loadFromStorage(STORAGE_KEYS.TEMPORARY_ANIMALS, SEED_TEMPORARY_ANIMALS) || SEED_TEMPORARY_ANIMALS;
     const loadedCases = loadFromStorage<Case[]>(STORAGE_KEYS.CASES, SEED_CASES) || SEED_CASES;
     this.cases = loadedCases.map(c => {
@@ -261,7 +456,19 @@ class LivestockGuardStore {
     this.outbreaks = loadFromStorage(STORAGE_KEYS.OUTBREAKS, SEED_OUTBREAKS) || SEED_OUTBREAKS;
     this.labSamples = loadFromStorage(STORAGE_KEYS.LAB_SAMPLES, SEED_LAB_SAMPLES) || SEED_LAB_SAMPLES;
     this.vaccinations = loadFromStorage(STORAGE_KEYS.VACCINATIONS, SEED_VACCINATIONS) || SEED_VACCINATIONS;
+    // Ensure all seed vaccinations exist
+    SEED_VACCINATIONS.forEach(sv => {
+      if (!this.vaccinations.some(v => v.id === sv.id)) {
+        this.vaccinations.push({ ...sv });
+      }
+    });
     this.treatments = loadFromStorage(STORAGE_KEYS.TREATMENTS, SEED_TREATMENTS) || SEED_TREATMENTS;
+    // Ensure all seed treatments exist
+    SEED_TREATMENTS.forEach(st => {
+      if (!this.treatments.some(t => t.id === st.id)) {
+        this.treatments.push({ ...st });
+      }
+    });
     this.mortalityReports = loadFromStorage(STORAGE_KEYS.MORTALITY, SEED_MORTALITY_REPORTS) || SEED_MORTALITY_REPORTS;
     this.alerts = loadFromStorage(STORAGE_KEYS.ALERTS, SEED_ALERTS) || SEED_ALERTS;
     this.weather = loadFromStorage(STORAGE_KEYS.WEATHER, SEED_WEATHER) || SEED_WEATHER;
@@ -296,6 +503,31 @@ class LivestockGuardStore {
         this.currentUser = this.authenticatedUser;
       }
     }
+
+    this.syncHerdStatistics();
+  }
+
+  public getHerdStatistics(herdOrId: Herd | string): HerdStatistics {
+    const herd = typeof herdOrId === 'string'
+      ? (this.herds || []).find(h => h.id === herdOrId || h.herdCode === herdOrId)
+      : herdOrId;
+    return calculateHerdStatistics(herd!, this.animals, this.cases);
+  }
+
+  public syncHerdStatistics(): void {
+    if (!this.herds) return;
+    this.herds.forEach(herd => {
+      const stats = this.getHerdStatistics(herd);
+      if (stats.linkedAnimalCount > 0) {
+        herd.totalAnimals = stats.total;
+        herd.healthyCount = stats.healthy;
+        herd.affectedCount = stats.affected;
+        herd.underObservationCount = stats.other;
+        herd.recoveredCount = stats.recovered;
+        herd.deathCount = stats.deceased;
+      }
+    });
+    saveToStorage(STORAGE_KEYS.HERDS, this.herds);
   }
 
   public subscribe(listener: () => void): () => void {
@@ -327,18 +559,33 @@ class LivestockGuardStore {
     const cleanInput = identifier.trim().toLowerCase();
     const numericOnly = cleanInput.replace(/\D/g, '');
 
-    // Match by email, phone, or direct role keyword for convenience
+    // Match by user ID, email, phone, or specific demo account name
     const matchedUser = this.users.find(u => {
-      const uEmail = u.email.toLowerCase();
-      const uPhoneClean = u.phone.replace(/\D/g, '');
-      const uRoleClean = u.role.toLowerCase();
+      const uEmail = (u.email || '').toLowerCase();
+      const uPhoneClean = (u.phone || '').replace(/\D/g, '');
+      const uRoleClean = (u.role || '').toLowerCase();
+      const uId = (u.id || '').toLowerCase();
+      const uName = (u.name || '').toLowerCase();
 
+      // 1. Direct ID match
+      if (uId === cleanInput) return true;
+
+      // 2. Exact email match
       if (uEmail === cleanInput) return true;
+
+      // 3. Exact phone match
       if (numericOnly && numericOnly.length >= 8 && uPhoneClean.includes(numericOnly)) return true;
-      if (cleanInput === uRoleClean || cleanInput.includes(uRoleClean)) return true;
+
+      // 4. Specific farmer names
+      if (cleanInput.includes('mahadev') && (u.id === 'usr_farmer_3' || uName.includes('mahadev'))) return true;
+      if (cleanInput.includes('basavaraj') && (u.id === 'usr_farmer_5' || uName.includes('basavaraj'))) return true;
+      if (cleanInput.includes('ramesh') && (u.id === 'usr_farmer_1' || uName.includes('ramesh'))) return true;
+
+      // 5. Direct role keyword matches
+      if (cleanInput === uRoleClean) return true;
       if (cleanInput.includes('vet') && u.role === 'VETERINARIAN') return true;
       if (cleanInput.includes('doctor') && u.role === 'VETERINARIAN') return true;
-      if (cleanInput.includes('farmer') && u.role === 'FARMER') return true;
+      if (cleanInput.includes('farmer') && u.role === 'FARMER' && u.id === 'usr_farmer_1') return true;
       if (cleanInput.includes('field') && u.role === 'FIELD_WORKER') return true;
       if (cleanInput.includes('lab') && (u.role === 'LABORATORY_STAFF' || u.role === 'DIAGNOSTIC_LAB')) return true;
       if (cleanInput.includes('district') && u.role === 'DISTRICT_OFFICIAL') return true;
@@ -395,11 +642,36 @@ class LivestockGuardStore {
   }
 
   /**
+   * Fast direct login as a specific user account (e.g., specific farmer)
+   */
+  public loginAsUser(userId: string): { success: boolean; user?: User; error?: string } {
+    const user = this.users.find(u => u.id === userId) || SEED_USERS.find(u => u.id === userId);
+    if (!user) {
+      return { success: false, error: `User with ID ${userId} not found` };
+    }
+
+    this.authenticatedUser = user;
+    this.currentUser = user;
+    this.isUserAuthenticated = true;
+    this.isDemoModeActive = false;
+
+    saveToStorage(STORAGE_KEYS.IS_LOGGED_IN, true);
+    saveToStorage(STORAGE_KEYS.AUTH_USER, user);
+    saveToStorage(STORAGE_KEYS.CURRENT_USER, user.id);
+    saveToStorage(STORAGE_KEYS.DEMO_MODE, false);
+
+    this.notify();
+    return { success: true, user };
+  }
+
+  /**
    * Clears session, clears protected state, and returns to Login
    */
   public logout(): void {
     this.isUserAuthenticated = false;
     this.isDemoModeActive = false;
+    this.currentUser = this.users[0] || SEED_USERS[0];
+    this.authenticatedUser = this.users[0] || SEED_USERS[0];
     saveToStorage(STORAGE_KEYS.IS_LOGGED_IN, false);
     saveToStorage(STORAGE_KEYS.DEMO_MODE, false);
     try {
@@ -536,6 +808,77 @@ class LivestockGuardStore {
     this.notify();
   }
 
+  // ==========================================
+  // OWNERSHIP & RELATIONSHIP RESOLUTION HELPERS
+  // ==========================================
+
+  private resolveUser(userOrId?: User | string): User | null {
+    if (!userOrId) return this.currentUser || null;
+    if (typeof userOrId === 'string') {
+      return this.users.find(u => u.id === userOrId) || this.currentUser || null;
+    }
+    return userOrId;
+  }
+
+  /**
+   * Helper: Resolves all Farm IDs owned by or assigned to a specific user (or the current user).
+   */
+  public getUserFarmIds(userOrId?: User | string): Set<string> {
+    const user = this.resolveUser(userOrId);
+    const farmIds = new Set<string>();
+    if (!user) return farmIds;
+
+    if (user.farmId) {
+      farmIds.add(user.farmId);
+    }
+    (this.farms || []).forEach(f => {
+      if (f.ownerId === user.id) {
+        farmIds.add(f.id);
+      }
+    });
+    return farmIds;
+  }
+
+  /**
+   * Helper: Resolves all Herd IDs owned by a specific farmer or linked to their farms.
+   */
+  public getFarmerHerdIds(userOrId?: User | string): Set<string> {
+    const user = this.resolveUser(userOrId);
+    const herdIds = new Set<string>();
+    if (!user) return herdIds;
+
+    const userFarmIds = this.getUserFarmIds(user);
+    (this.herds || []).forEach(h => {
+      if ((h.ownerId && h.ownerId === user.id) || (h.farmId && userFarmIds.has(h.farmId))) {
+        herdIds.add(h.id);
+      }
+    });
+    return herdIds;
+  }
+
+  /**
+   * Helper: Resolves all Animal IDs owned by a specific farmer or in their herds/farms.
+   */
+  public getFarmerAnimalIds(userOrId?: User | string): Set<string> {
+    const user = this.resolveUser(userOrId);
+    const animalIds = new Set<string>();
+    if (!user) return animalIds;
+
+    const userFarmIds = this.getUserFarmIds(user);
+    const userHerdIds = this.getFarmerHerdIds(user);
+    (this.animals || []).forEach(a => {
+      if ((a as any).isDeleted || (a as any).isArchived) return;
+      if (
+        (a.ownerId && a.ownerId === user.id) ||
+        (a.farmId && userFarmIds.has(a.farmId)) ||
+        (a.herdId && userHerdIds.has(a.herdId))
+      ) {
+        animalIds.add(a.id);
+      }
+    });
+    return animalIds;
+  }
+
   // Data Getters
   public getFarms(): Farm[] {
     return this.farms || [];
@@ -550,7 +893,38 @@ class LivestockGuardStore {
   }
 
   public getAnimalById(id: string): Animal | undefined {
-    return (this.animals || []).find(a => a.id === id || a.tagNumber === id);
+    const a = (this.animals || []).find(animal => animal.id === id || animal.tagNumber === id);
+    if (!a) return undefined;
+    // Security Guard: Farmer can only access their own registered animals
+    if (this.currentUser?.role === 'FARMER') {
+      const userAnimalIds = this.getFarmerAnimalIds(this.currentUser);
+      if (!userAnimalIds.has(a.id)) {
+        return undefined;
+      }
+    }
+    return a;
+  }
+
+  public getHerdById(id: string): Herd | undefined {
+    const h = (this.herds || []).find(herd => herd.id === id || herd.herdCode === id);
+    if (!h) return undefined;
+    // Security Guard: Farmer can only access their own herds
+    if (this.currentUser?.role === 'FARMER') {
+      const userHerdIds = this.getFarmerHerdIds(this.currentUser);
+      if (!userHerdIds.has(h.id)) {
+        return undefined;
+      }
+    }
+    const stats = this.getHerdStatistics(h);
+    if (stats.linkedAnimalCount > 0) {
+      h.totalAnimals = stats.total;
+      h.healthyCount = stats.healthy;
+      h.affectedCount = stats.affected;
+      h.underObservationCount = stats.other;
+      h.recoveredCount = stats.recovered;
+      h.deathCount = stats.deceased;
+    }
+    return h;
   }
 
   public getTemporaryAnimals(): TemporaryAnimal[] {
@@ -566,7 +940,26 @@ class LivestockGuardStore {
   }
 
   public getCaseById(id: string): Case | undefined {
-    return (this.cases || []).find(c => c.id === id || c.caseNumber === id);
+    const c = (this.cases || []).find(caseItem => caseItem.id === id || caseItem.caseNumber === id);
+    if (!c) return undefined;
+    // Security Guard: Farmer can only access their own cases
+    if (this.currentUser?.role === 'FARMER') {
+      const userFarmIds = this.getUserFarmIds(this.currentUser);
+      const userAnimalIds = this.getFarmerAnimalIds(this.currentUser);
+      const userHerdIds = this.getFarmerHerdIds(this.currentUser);
+
+      const isAuthorized =
+        c.reporterId === this.currentUser.id ||
+        c.ownerId === this.currentUser.id ||
+        (c.farmId && userFarmIds.has(c.farmId)) ||
+        (c.herdId && userHerdIds.has(c.herdId)) ||
+        (c.animalId && userAnimalIds.has(c.animalId));
+
+      if (!isAuthorized) {
+        return undefined;
+      }
+    }
+    return c;
   }
 
   public getOutbreaks(): Outbreak[] {
@@ -638,13 +1031,21 @@ class LivestockGuardStore {
   // ==========================================
 
   public getScopedCases(): Case[] {
-    const role = this.currentUser?.role;
+    const user = this.currentUser;
+    const role = user?.role;
     const allCases = this.cases || [];
+
     if (role === 'FARMER') {
+      const userFarmIds = this.getUserFarmIds(user);
+      const userHerdIds = this.getFarmerHerdIds(user);
+      const userAnimalIds = this.getFarmerAnimalIds(user);
+
       return allCases.filter(
-        c => (this.currentUser?.farmId && c.farmId === this.currentUser?.farmId) ||
-             (this.currentUser?.name && c.ownerName === this.currentUser?.name) ||
-             (this.currentUser?.phone && c.ownerPhone === this.currentUser?.phone)
+        c => c.reporterId === user.id ||
+             c.ownerId === user.id ||
+             (c.farmId && userFarmIds.has(c.farmId)) ||
+             (c.herdId && userHerdIds.has(c.herdId)) ||
+             (c.animalId && userAnimalIds.has(c.animalId))
       );
     }
     if (role === 'FIELD_WORKER') {
@@ -661,7 +1062,7 @@ class LivestockGuardStore {
              c.districtName?.toLowerCase().includes('satara')
       );
     }
-    if (role === 'LABORATORY_STAFF') {
+    if (role === 'LABORATORY_STAFF' || role === 'DIAGNOSTIC_LAB') {
       return allCases.filter(c => c.status === 'LAB_TESTING' || (c.sampleIds && c.sampleIds.length > 0) || c.status === 'SAMPLE_REQUESTED' || c.status === 'CONFIRMED' || c.status === 'RULED_OUT');
     }
     if (role === 'DISTRICT_OFFICIAL') {
@@ -672,12 +1073,13 @@ class LivestockGuardStore {
   }
 
   public getScopedAnimals(): Animal[] {
-    const role = this.currentUser?.role;
+    const user = this.currentUser;
+    const role = user?.role;
     const allAnimals = (this.animals || []).filter(
       a => !(a as any).isDeleted && !(a as any).isArchived
     );
     if (role === 'FARMER') {
-      return this.getFarmerAnimals(this.currentUser);
+      return this.getFarmerAnimals(user);
     }
     if (role === 'FIELD_WORKER') {
       return allAnimals.filter(
@@ -695,53 +1097,79 @@ class LivestockGuardStore {
     const allAnimals = (this.animals || []).filter(
       a => !(a as any).isDeleted && !(a as any).isArchived
     );
-    let user = this.currentUser;
-    if (typeof farmerUserOrId === 'string') {
-      user = this.users.find(u => u.id === farmerUserOrId) || user;
-    } else if (farmerUserOrId) {
-      user = farmerUserOrId;
-    }
+    const user = this.resolveUser(farmerUserOrId);
     if (!user) return [];
 
+    const userFarmIds = this.getUserFarmIds(user);
+    const userHerdIds = this.getFarmerHerdIds(user);
+
     return allAnimals.filter(a => {
-      // Direct ownerId match
-      if (user.id && a.ownerId === user.id) return true;
-      // Farm ID match
-      if (user.farmId && a.farmId === user.farmId) return true;
-      // Case-insensitive ownerName match
-      if (
-        user.name &&
-        a.ownerName &&
-        a.ownerName.trim().toLowerCase() === user.name.trim().toLowerCase()
-      ) {
-        return true;
-      }
+      // 1. Direct ownerId match
+      if (a.ownerId && a.ownerId === user.id) return true;
+      // 2. Belongs to farm owned by user
+      if (a.farmId && userFarmIds.has(a.farmId)) return true;
+      // 3. Belongs to herd owned by user
+      if (a.herdId && userHerdIds.has(a.herdId)) return true;
+      return false;
+    });
+  }
+
+  public getFarmerHerds(farmerUserOrId?: User | string): Herd[] {
+    const user = this.resolveUser(farmerUserOrId);
+    if (!user) return [];
+
+    const userFarmIds = this.getUserFarmIds(user);
+
+    return (this.herds || []).filter(h => {
+      // 1. Direct ownerId match
+      if (h.ownerId && h.ownerId === user.id) return true;
+      // 2. Belongs to a farm owned by the user
+      if (h.farmId && userFarmIds.has(h.farmId)) return true;
       return false;
     });
   }
 
   public getScopedHerds(): Herd[] {
-    const role = this.currentUser?.role;
+    const user = this.currentUser;
+    const role = user?.role;
     const allHerds = this.herds || [];
+
+    // Ensure all herds have accurate dynamic statistics
+    allHerds.forEach(h => {
+      const stats = this.getHerdStatistics(h);
+      if (stats.linkedAnimalCount > 0) {
+        h.totalAnimals = stats.total;
+        h.healthyCount = stats.healthy;
+        h.affectedCount = stats.affected;
+        h.underObservationCount = stats.other;
+        h.recoveredCount = stats.recovered;
+        h.deathCount = stats.deceased;
+      }
+    });
+
     if (role === 'FARMER') {
-      return allHerds.filter(
-        h => (this.currentUser?.farmId && h.farmId === this.currentUser?.farmId) ||
-             (this.currentUser?.name && h.ownerName === this.currentUser?.name)
-      );
+      return this.getFarmerHerds(user);
     }
     if (role === 'FIELD_WORKER') {
-      return allHerds.filter(h => h.farmId === 'farm_01' || h.farmId === 'farm_02');
+      return allHerds.filter(h => h.farmId === 'farm_01' || h.farmId === 'farm_02' || h.districtId === user?.districtId);
+    }
+    if (role === 'VETERINARIAN') {
+      return allHerds.filter(h => h.districtId === user?.districtId || h.stateId === user?.stateId);
+    }
+    if (role === 'DISTRICT_OFFICIAL') {
+      return allHerds.filter(h => h.districtId === user?.districtId || h.stateId === user?.stateId);
     }
     return allHerds;
   }
 
   public getScopedFarms(): Farm[] {
-    const role = this.currentUser?.role;
+    const user = this.currentUser;
+    const role = user?.role;
     const allFarms = this.farms || [];
+
     if (role === 'FARMER') {
-      return allFarms.filter(
-        f => (this.currentUser?.farmId && f.id === this.currentUser?.farmId) || (this.currentUser?.name && f.ownerName === this.currentUser?.name)
-      );
+      const userFarmIds = this.getUserFarmIds(user);
+      return allFarms.filter(f => f.ownerId === user.id || userFarmIds.has(f.id));
     }
     if (role === 'FIELD_WORKER') {
       return allFarms.filter(f => f.districtId === 'dt_pune' || f.id === 'farm_01' || f.id === 'farm_02' || f.id === 'farm_03');
@@ -750,38 +1178,81 @@ class LivestockGuardStore {
   }
 
   public getScopedLabSamples(): LabSample[] {
-    const role = this.currentUser?.role;
+    const user = this.currentUser;
+    const role = user?.role;
     const allSamples = this.labSamples || [];
+
     if (role === 'FARMER') {
       const myCaseIds = new Set(this.getScopedCases().map(c => c.id));
-      return allSamples.filter(s => myCaseIds.has(s.caseId));
+      const myAnimalIds = this.getFarmerAnimalIds(user);
+      return allSamples.filter(s => myCaseIds.has(s.caseId) || (s.animalId && myAnimalIds.has(s.animalId)));
     }
     if (role === 'FIELD_WORKER') {
-      return allSamples.filter(s => (this.currentUser?.name && s.collectedBy === this.currentUser?.name) || s.collectedBy?.includes('Sunita') || s.laboratoryId === 'lab_pune_dis');
+      return allSamples.filter(s => (user?.name && s.collectedBy === user?.name) || s.collectedBy?.includes('Sunita') || s.laboratoryId === 'lab_pune_dis');
     }
     return allSamples;
   }
 
   public getScopedVaccinations(): VaccinationRecord[] {
-    const role = this.currentUser?.role;
+    const user = this.currentUser;
+    const role = user?.role;
     const allVax = this.vaccinations || [];
+
     if (role === 'FARMER') {
-      const myAnimalIds = new Set(this.getScopedAnimals().map(a => a.id));
-      return allVax.filter(v => (v.animalId && myAnimalIds.has(v.animalId)) || (this.currentUser?.farmId && v.farmId === this.currentUser?.farmId));
+      const userFarmIds = this.getUserFarmIds(user);
+      const userHerdIds = this.getFarmerHerdIds(user);
+      const userAnimalIds = this.getFarmerAnimalIds(user);
+
+      return allVax.filter(
+        v => (v.animalId && userAnimalIds.has(v.animalId)) ||
+             (v.herdId && userHerdIds.has(v.herdId)) ||
+             (v.farmId && userFarmIds.has(v.farmId))
+      );
     }
     if (role === 'FIELD_WORKER') {
-      return allVax.filter(v => (this.currentUser?.name && v.administeredBy === this.currentUser?.name) || v.administeredBy?.includes('Sunita') || v.villageName?.includes('Malegaon') || v.villageName?.includes('Shirsuphal'));
+      return allVax.filter(v => (user?.name && v.administeredBy === user?.name) || v.administeredBy?.includes('Sunita') || v.villageName?.includes('Malegaon') || v.villageName?.includes('Shirsuphal'));
     }
     return allVax;
   }
 
-  public getScopedMortalityReports(): MortalityReport[] {
-    const role = this.currentUser?.role;
-    const allMort = this.mortalityReports || [];
+  public getScopedTreatments(): TreatmentRecord[] {
+    const user = this.currentUser;
+    const role = user?.role;
+    const allTreatments = this.treatments || [];
+
     if (role === 'FARMER') {
+      const userAnimalIds = this.getFarmerAnimalIds(user);
+      const userFarmIds = this.getUserFarmIds(user);
+      const userCaseIds = new Set(this.getScopedCases().map(c => c.id));
+
+      return allTreatments.filter(
+        t => (t.animalId && userAnimalIds.has(t.animalId)) ||
+             (t.caseId && userCaseIds.has(t.caseId)) ||
+             (t.farmId && userFarmIds.has(t.farmId))
+      );
+    }
+    if (role === 'FIELD_WORKER') {
+      return allTreatments.filter(t => t.farmName?.includes('Patil') || t.farmName?.includes('Gaikwad') || t.farmName?.includes('Krishna'));
+    }
+    return allTreatments;
+  }
+
+  public getScopedMortalityReports(): MortalityReport[] {
+    const user = this.currentUser;
+    const role = user?.role;
+    const allMort = this.mortalityReports || [];
+
+    if (role === 'FARMER') {
+      const userFarmIds = this.getUserFarmIds(user);
+      const userHerdIds = this.getFarmerHerdIds(user);
+      const userAnimalIds = this.getFarmerAnimalIds(user);
+
       return allMort.filter(
-        m => (this.currentUser?.farmId && m.farmId === this.currentUser?.farmId) ||
-             (this.currentUser?.name && m.ownerName === this.currentUser?.name)
+        m => (m.farmId && userFarmIds.has(m.farmId)) ||
+             (m.herdId && userHerdIds.has(m.herdId)) ||
+             (m.animalId && userAnimalIds.has(m.animalId)) ||
+             (m.ownerPhone && user.phone && m.ownerPhone.replace(/\D/g, '') === user.phone.replace(/\D/g, '')) ||
+             (m.reportedBy && m.reportedBy === user.name)
       );
     }
     if (role === 'FIELD_WORKER') {
@@ -791,19 +1262,55 @@ class LivestockGuardStore {
   }
 
   public getScopedAlerts(): Alert[] {
-    const role = this.currentUser?.role;
+    const user = this.currentUser;
+    const role = user?.role;
     const allAlerts = this.alerts || [];
+
+    if (role === 'FARMER') {
+      const userCaseIds = new Set(this.getScopedCases().map(c => c.id));
+      const userDistrict = (user?.districtId || '').toLowerCase();
+
+      return allAlerts.filter(a => {
+        // Target role check
+        if (a.targetRoles && a.targetRoles.length > 0 && !a.targetRoles.includes('FARMER')) {
+          return false;
+        }
+        // If alert is tied to a specific case, only show if it belongs to this farmer
+        if (a.caseId && !userCaseIds.has(a.caseId)) {
+          return false;
+        }
+        // If alert title is tied to a specific farm name, match with user's farm
+        if (a.title.includes('Patil Farm') && user.id !== 'usr_farmer_1') {
+          return false;
+        }
+        // District filter for non-critical alerts
+        if (a.districtName && a.priority !== 'CRITICAL') {
+          const alertDist = a.districtName.toLowerCase();
+          const matchesDist = userDistrict.includes(alertDist);
+          if (!matchesDist) return false;
+        }
+        return true;
+      });
+    }
+
     return allAlerts.filter(a => !a.targetRoles || a.targetRoles.length === 0 || (role && a.targetRoles.includes(role)));
   }
 
   public getScopedFieldVisits(): FieldVisit[] {
-    const role = this.currentUser?.role;
+    const user = this.currentUser;
+    const role = user?.role;
     const allVisits = this.fieldVisits || [];
+
     if (role === 'FARMER') {
-      return allVisits.filter(v => (this.currentUser?.farmId && v.farmId === this.currentUser?.farmId) || (this.currentUser?.name && v.farmerName === this.currentUser?.name));
+      const userFarmIds = this.getUserFarmIds(user);
+      return allVisits.filter(
+        v => (v.farmId && userFarmIds.has(v.farmId)) ||
+             (user.farmId && v.farmId === user.farmId) ||
+             (user.name && v.farmerName === user.name)
+      );
     }
     if (role === 'FIELD_WORKER') {
-      return allVisits.filter(v => (this.currentUser?.id && v.assignedWorkerId === this.currentUser?.id) || (this.currentUser?.name && v.assignedWorkerName === this.currentUser?.name) || v.villageName?.includes('Malegaon') || v.villageName?.includes('Shirsuphal'));
+      return allVisits.filter(v => (user?.id && v.assignedWorkerId === user?.id) || (user?.name && v.assignedWorkerName === user?.name) || v.villageName?.includes('Malegaon') || v.villageName?.includes('Shirsuphal'));
     }
     return allVisits;
   }
@@ -816,10 +1323,24 @@ class LivestockGuardStore {
   // Mutations
   public registerAnimal(animalData: Omit<Animal, 'id' | 'registeredAt' | 'lastCheckedAt' | 'vaccinationCount'>): Animal {
     const user = this.currentUser;
-    const resolvedOwnerId = animalData.ownerId || user?.id || 'usr_farmer_1';
-    const resolvedOwnerName = animalData.ownerName || user?.name || 'Ramesh Patil';
-    const resolvedFarmId = animalData.farmId || user?.farmId || 'farm_01';
-    const resolvedFarmName = animalData.farmName || user?.farmName || 'Patil Progressive Dairy Farm';
+    let resolvedOwnerId = animalData.ownerId;
+    let resolvedOwnerName = animalData.ownerName;
+    let resolvedFarmId = animalData.farmId;
+    let resolvedFarmName = animalData.farmName;
+
+    if (user?.role === 'FARMER') {
+      resolvedOwnerId = user.id;
+      resolvedOwnerName = user.name;
+      const userFarms = this.getScopedFarms();
+      const matchedFarm = userFarms.find(f => f.id === animalData.farmId);
+      resolvedFarmId = matchedFarm ? matchedFarm.id : (user.farmId || userFarms[0]?.id || 'farm_01');
+      resolvedFarmName = matchedFarm ? matchedFarm.name : (user.farmName || userFarms[0]?.name || 'Local Farm Unit');
+    } else {
+      resolvedOwnerId = resolvedOwnerId || user?.id || 'usr_farmer_1';
+      resolvedOwnerName = resolvedOwnerName || user?.name || 'Ramesh Patil';
+      resolvedFarmId = resolvedFarmId || user?.farmId || 'farm_01';
+      resolvedFarmName = resolvedFarmName || user?.farmName || 'Patil Progressive Dairy Farm';
+    }
 
     const newAnimal: Animal = {
       ...animalData,
@@ -854,6 +1375,9 @@ class LivestockGuardStore {
       saveToStorage(STORAGE_KEYS.FARMS, this.farms);
     }
 
+    // Update herd dynamic statistics
+    this.syncHerdStatistics();
+
     this.notify();
     return newAnimal;
   }
@@ -862,12 +1386,25 @@ class LivestockGuardStore {
     const animal = this.animals.find(a => a.id === id || a.tagNumber === id);
     if (!animal) return undefined;
 
+    if (this.currentUser?.role === 'FARMER') {
+      const userAnimalIds = this.getFarmerAnimalIds(this.currentUser);
+      if (!userAnimalIds.has(animal.id)) {
+        console.warn('Unauthorized attempt to update animal belonging to another farmer');
+        return undefined;
+      }
+      // Farmers cannot reassign ownership or farm
+      delete (updates as any).ownerId;
+      delete (updates as any).ownerName;
+      delete (updates as any).farmId;
+    }
+
     // Apply updates without changing id or registration date
     Object.assign(animal, updates, {
       lastCheckedAt: new Date().toISOString().split('T')[0]
     });
 
     saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
+    this.syncHerdStatistics();
     this.notify();
     return animal;
   }
@@ -877,6 +1414,14 @@ class LivestockGuardStore {
     if (index === -1) return false;
 
     const removedAnimal = this.animals[index];
+    if (this.currentUser?.role === 'FARMER') {
+      const userAnimalIds = this.getFarmerAnimalIds(this.currentUser);
+      if (!userAnimalIds.has(removedAnimal.id)) {
+        console.warn('Unauthorized attempt to delete animal belonging to another farmer');
+        return false;
+      }
+    }
+
     this.animals.splice(index, 1);
     saveToStorage(STORAGE_KEYS.ANIMALS, this.animals);
 
@@ -886,6 +1431,9 @@ class LivestockGuardStore {
       farm.totalAnimals -= 1;
       saveToStorage(STORAGE_KEYS.FARMS, this.farms);
     }
+
+    // Synchronize dynamic herd statistics
+    this.syncHerdStatistics();
 
     this.notify();
     return true;
@@ -1008,10 +1556,26 @@ class LivestockGuardStore {
   }
 
   public registerHerd(herdData: Omit<Herd, 'id' | 'herdCode' | 'riskScore' | 'riskLevel'>): Herd {
+    const user = this.currentUser;
+    let resolvedOwnerId = herdData.ownerId;
+    let resolvedOwnerName = herdData.ownerName;
+    let resolvedFarmId = herdData.farmId;
+
+    if (user?.role === 'FARMER') {
+      resolvedOwnerId = user.id;
+      resolvedOwnerName = user.name;
+      const userFarms = this.getScopedFarms();
+      const matchedFarm = userFarms.find(f => f.id === herdData.farmId);
+      resolvedFarmId = matchedFarm ? matchedFarm.id : (user.farmId || userFarms[0]?.id || 'farm_01');
+    }
+
     const newHerd: Herd = {
       ...herdData,
+      ownerId: resolvedOwnerId,
+      ownerName: resolvedOwnerName,
+      farmId: resolvedFarmId,
       id: `hrd_${Date.now()}`,
-      herdCode: `HRD-${herdData.districtId.toUpperCase().slice(-3)}-${Math.floor(10 + Math.random() * 90)}`,
+      herdCode: `HRD-${(herdData.districtId || 'DIS').toUpperCase().slice(-3)}-${Math.floor(10 + Math.random() * 90)}`,
       riskScore: 20,
       riskLevel: 'LOW'
     };
@@ -1022,9 +1586,64 @@ class LivestockGuardStore {
     return newHerd;
   }
 
+  public updateHerd(id: string, updates: Partial<Herd>): Herd | undefined {
+    const herd = this.herds.find(h => h.id === id || h.herdCode === id);
+    if (!herd) return undefined;
+
+    if (this.currentUser?.role === 'FARMER') {
+      const userHerdIds = this.getFarmerHerdIds(this.currentUser);
+      if (!userHerdIds.has(herd.id)) {
+        console.warn('Unauthorized attempt to update herd belonging to another farmer');
+        return undefined;
+      }
+      // Farmers cannot reassign herd ownership
+      delete (updates as any).ownerId;
+      delete (updates as any).ownerName;
+      if (updates.farmId && !this.getUserFarmIds(this.currentUser).has(updates.farmId)) {
+        delete updates.farmId;
+      }
+    }
+
+    Object.assign(herd, updates);
+    saveToStorage(STORAGE_KEYS.HERDS, this.herds);
+    this.notify();
+    return herd;
+  }
+
+  public deleteHerd(id: string): boolean {
+    const index = this.herds.findIndex(h => h.id === id || h.herdCode === id);
+    if (index === -1) return false;
+
+    const herd = this.herds[index];
+    if (this.currentUser?.role === 'FARMER') {
+      const userHerdIds = this.getFarmerHerdIds(this.currentUser);
+      if (!userHerdIds.has(herd.id)) {
+        console.warn('Unauthorized attempt to delete herd belonging to another farmer');
+        return false;
+      }
+    }
+
+    this.herds.splice(index, 1);
+    saveToStorage(STORAGE_KEYS.HERDS, this.herds);
+    this.notify();
+    return true;
+  }
+
   public createCase(caseData: Omit<Case, 'id' | 'caseNumber' | 'createdAt' | 'updatedAt' | 'auditTrail' | 'riskScore' | 'riskLevel' | 'suspectedDiseases'> & { customRisk?: { score: number; level: any; suspected: any[] } }): Case {
     const timestamp = new Date().toISOString();
     const caseNum = `CAS-${(caseData.stateId || 'IN').toUpperCase().slice(-2)}-${(caseData.districtName || 'DIS').toUpperCase().slice(0, 3)}-2026-${String((this.cases || []).length + 1).padStart(4, '0')}`;
+
+    // Enforce farmer identity for case submission
+    if (this.currentUser?.role === 'FARMER') {
+      caseData.reporterId = this.currentUser.id;
+      caseData.reporterName = this.currentUser.name;
+      caseData.ownerName = this.currentUser.name;
+      caseData.ownerPhone = this.currentUser.phone || caseData.ownerPhone;
+      const userFarms = this.getUserFarmIds(this.currentUser);
+      if (!caseData.farmId || !userFarms.has(caseData.farmId)) {
+        caseData.farmId = this.currentUser.farmId || Array.from(userFarms)[0] || caseData.farmId;
+      }
+    }
 
     // Compute explainable report credibility and validation
     const credAssessment = ReportCredibilityEngine.assessReportCredibility({
@@ -1224,6 +1843,7 @@ class LivestockGuardStore {
       });
     }
 
+    this.syncHerdStatistics();
     this.notify();
     return newCase;
   }
@@ -1273,6 +1893,7 @@ class LivestockGuardStore {
     }
 
     saveToStorage(STORAGE_KEYS.CASES, this.cases);
+    this.syncHerdStatistics();
     this.notify();
     return c;
   }

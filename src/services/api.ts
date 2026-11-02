@@ -76,11 +76,27 @@ export const api = {
   herds: {
     list: async () => {
       await latency(60);
-      return store.getHerds();
+      return store.getScopedHerds();
+    },
+    getById: async (id: string) => {
+      await latency(40);
+      return store.getHerdById(id);
+    },
+    getStatistics: async (id: string) => {
+      await latency(40);
+      return store.getHerdStatistics(id);
     },
     create: async (data: any) => {
       await latency(100);
       return store.registerHerd(data);
+    },
+    update: async (id: string, data: any) => {
+      await latency(100);
+      return store.updateHerd(id, data);
+    },
+    delete: async (id: string) => {
+      await latency(100);
+      return store.deleteHerd(id);
     }
   },
 

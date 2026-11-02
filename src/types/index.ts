@@ -638,6 +638,7 @@ export interface Case {
   herdId?: string;
   herdName?: string;
   species: Species;
+  ownerId?: string;
   ownerName: string;
   ownerPhone: string;
   farmId: string;
@@ -765,8 +766,12 @@ export interface TreatmentRecord {
   caseId?: string;
   animalId?: string;
   animalTag?: string;
-  species: Species;
+  herdId?: string;
+  farmId?: string;
   farmName: string;
+  ownerId?: string;
+  ownerName?: string;
+  species: Species;
   suspectedDisease: string;
   treatmentDate: string;
   medicines: {

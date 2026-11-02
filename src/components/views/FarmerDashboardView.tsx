@@ -15,10 +15,11 @@ import {
   Info,
   Syringe,
   Activity,
-  FileText
+  FileText,
+  Layers
 } from 'lucide-react';
 import { store } from '../../services/store';
-import { Animal, Case, Alert, FieldVisit, WeatherData, VaccinationRecord } from '../../types';
+import { Animal, Case, Alert, FieldVisit, WeatherData, VaccinationRecord, Herd } from '../../types';
 import { getTerminology, formatAlertForRole } from '../../utils/terminology';
 import { RiskBadge } from '../common/RiskBadge';
 import { useTranslation } from '../../i18n/translations';
@@ -30,6 +31,7 @@ interface FarmerDashboardViewProps {
 export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavigate }) => {
   const { t, currentLang } = useTranslation();
   const [currentUser, setCurrentUser] = useState(store.getCurrentUser());
+  const [herds, setHerds] = useState<Herd[]>([]);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -42,6 +44,7 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
   const refreshData = () => {
     const user = store.getCurrentUser();
     setCurrentUser(user);
+    setHerds(store.getScopedHerds());
     setAnimals(store.getScopedAnimals());
     setCases(store.getScopedCases());
     setAlerts(store.getScopedAlerts());
@@ -55,13 +58,57 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
     return store.subscribe(refreshData);
   }, []);
 
-  const healthyAnimals = (animals || []).filter(a => a.currentHealthStatus === 'HEALTHY' || a.currentHealthStatus === 'RECOVERED');
-  const affectedAnimals = (animals || []).filter(a => a.currentHealthStatus === 'AFFECTED' || a.currentHealthStatus === 'UNDER_OBSERVATION');
-  const activeCases = (cases || []).filter(c => c.status !== 'RESOLVED' && c.status !== 'RULED_OUT');
+  const activeCases = (cases || []).filter(
+    c => c.status !== 'RESOLVED' && c.status !== 'RULED_OUT' && c.status !== 'CLOSED' && (c as any).status !== 'DISMISSED'
+  );
+
+  const animalIdsWithActiveCase = new Set<string>();
+  activeCases.forEach(c => {
+    if (c.animalId) animalIdsWithActiveCase.add(c.animalId);
+  });
+
+  const activeAnimals = (animals || []).filter(
+    a => !(a as any).isDeleted && !(a as any).isArchived && a.currentHealthStatus !== 'DECEASED'
+  );
+
+  const affectedAnimals = activeAnimals.filter(a => {
+    const hasActiveCase = animalIdsWithActiveCase.has(a.id) || (a.activeCaseId && activeCases.some(c => c.id === a.activeCaseId));
+    const isExplicitlyAffected =
+      a.currentHealthStatus === 'AFFECTED' ||
+      (a.currentHealthStatus as string) === 'SICK' ||
+      (a.currentHealthStatus as string) === 'INFECTED' ||
+      (a.currentHealthStatus as string) === 'CRITICAL' ||
+      (a.currentHealthStatus as string) === 'QUARANTINED';
+    return hasActiveCase || isExplicitlyAffected;
+  });
+
+  const otherAnimals = activeAnimals.filter(a => {
+    if (affectedAnimals.includes(a)) return false;
+    return (
+      (a.currentHealthStatus as string) === 'UNKNOWN' ||
+      (a.currentHealthStatus as string) === 'PENDING' ||
+      (a.currentHealthStatus as string) === 'UNVERIFIED' ||
+      (a as any).isUnverified === true
+    );
+  });
+
+  const healthyAnimals = activeAnimals.filter(a => !affectedAnimals.includes(a) && !otherAnimals.includes(a));
   const pendingVisits = (fieldVisits || []).filter(v => v.status === 'SCHEDULED' || v.status === 'IN_PROGRESS');
 
   // Format top alert with farmer-friendly wording & translation
   const activeAlertFormatted = alerts.length > 0 && alerts[0] ? formatAlertForRole(alerts[0], 'FARMER', currentLang) : null;
+
+  // Format farmer location line dynamically
+  const getLocationDisplay = () => {
+    const parts = [];
+    if (currentUser?.farmName) parts.push(currentUser.farmName);
+    if (currentUser?.village) parts.push(currentUser.village);
+    if (currentUser?.districtId) {
+      const cleanDist = currentUser.districtId.replace('dt_', '').replace('in_', '').replace('_', ' ');
+      parts.push(cleanDist.charAt(0).toUpperCase() + cleanDist.slice(1));
+    }
+    return parts.length > 0 ? parts.join(' • ') : 'Registered Holding';
+  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -79,7 +126,7 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
             </h1>
             <p className="text-emerald-100 text-sm mt-1 flex items-center gap-2">
               <MapPin className="w-4 h-4 text-emerald-300" />
-              {currentUser?.farmName || 'Patil Dairy Farm'} • {currentUser?.village || 'Malegaon Budruk'}, Baramati, Pune
+              {getLocationDisplay()}
             </p>
           </div>
 
@@ -90,6 +137,13 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
             >
               <PlusCircle className="w-4 h-4" />
               {terms.reportSickAnimal}
+            </button>
+            <button
+              onClick={() => onNavigate('herds')}
+              className="bg-white/10 hover:bg-white/20 text-white font-semibold px-4 py-2.5 rounded-xl border border-white/20 transition-all text-sm flex items-center gap-2 cursor-pointer"
+            >
+              <Layers className="w-4 h-4 text-emerald-300" />
+              <span>My Herds ({herds.length})</span>
             </button>
             <button
               onClick={() => onNavigate('animals')}
@@ -133,15 +187,37 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
         </div>
       )}
 
-      {/* Key Health Metrics (4-column grid) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+      {/* Key Health Metrics (5-column grid including Total Herds) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Total Herds */}
+        <div
+          onClick={() => onNavigate('herds')}
+          className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-all group"
+        >
+          <div>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Managed Herds</span>
+            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{herds.length}</div>
+            <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center gap-1 group-hover:underline">
+              <span>View Herds</span>
+              <ChevronRight className="w-3 h-3" />
+            </div>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+            <Layers className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Registered Animals */}
+        <div
+          onClick={() => onNavigate('animals')}
+          className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-all group"
+        >
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{terms.registeredAnimals}</span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{(animals || []).length}</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{(activeAnimals || []).length}</div>
             <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              {(healthyAnimals || []).length} {t('healthy', 'in good health')}
+              {(healthyAnimals || []).length} {t('healthy', 'healthy')}
             </div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
@@ -149,12 +225,13 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
           </div>
         </div>
 
+        {/* Under Observation / Sick */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{terms.underObservation}</span>
             <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{(affectedAnimals || []).length}</div>
             <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {(activeCases || []).length} {t('activeAlerts', 'sickness report(s) active')}
+              {(activeCases || []).length} {t('activeAlerts', 'sickness reports')}{otherAnimals.length > 0 ? ` • ${otherAnimals.length} other` : ''}
             </div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
@@ -162,13 +239,14 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
           </div>
         </div>
 
+        {/* Field Visits */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{terms.fieldVisits}</span>
             <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{(pendingVisits || []).length}</div>
             <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
-              {pendingVisits[0]?.scheduledTime || t('noData', 'No visits scheduled')}
+              {pendingVisits[0]?.scheduledTime || t('noData', 'None today')}
             </div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
@@ -176,19 +254,20 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
           </div>
         </div>
 
+        {/* Weather & Vector Risk */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('weatherEnvironment', 'Weather & Vector Risk')}</span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('weatherEnvironment', 'Vector Risk')}</span>
             <div className="text-lg font-bold text-slate-900 dark:text-white mt-1 flex items-center gap-2">
               <Thermometer className="w-4 h-4 text-orange-500" />
               {weather?.temperatureC ?? 28}°C
             </div>
             <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1 flex items-center gap-1">
               <CloudRain className="w-3.5 h-3.5" />
-              {t('epidemiologicalRisk', 'Risk')}: {weather?.vectorRiskIndex ?? 'MODERATE'}
+              {weather?.vectorRiskIndex ?? 'MODERATE'}
             </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
             <CloudRain className="w-6 h-6" />
           </div>
         </div>
@@ -426,7 +505,9 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({ onNavi
               </div>
               <div>
                 <h4 className="font-bold text-sm">{terms.emergencyHelpline}</h4>
-                <p className="text-[11px] text-blue-200">Baramati Taluka Veterinary Polyclinic</p>
+                <p className="text-[11px] text-blue-200">
+                  {currentUser?.districtId ? `${currentUser.districtId.replace('dt_', '').toUpperCase()} Veterinary Polyclinic` : 'Taluka Veterinary Polyclinic'}
+                </p>
               </div>
             </div>
             <p className="text-xs text-blue-100 mt-2 mb-3 leading-relaxed">

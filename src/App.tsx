@@ -51,19 +51,20 @@ export function App() {
   }, []);
 
   const currentUser = store.getCurrentUser();
-  const cases = store.getCases() || [];
+  const isFarmer = currentUser?.role === 'FARMER';
+  const cases = isFarmer ? store.getScopedCases() : store.getCases() || [];
   const outbreaks = store.getOutbreaks() || [];
   const scopedAnimals = store.getScopedAnimals() || [];
   const allAnimals = store.getAnimals() || [];
-  const animals = currentUser?.role === 'FARMER' ? scopedAnimals : allAnimals;
-  const herds = store.getHerds() || [];
-  const farms = store.getFarms() || [];
-  const labSamples = store.getLabSamples() || [];
-  const vaccinations = store.getVaccinations() || [];
-  const treatments = store.getTreatments() || [];
-  const mortalities = store.getMortalityReports() || [];
-  const alerts = store.getAlerts() || [];
-  const weather = store.getWeather();
+  const animals = isFarmer ? scopedAnimals : allAnimals;
+  const herds = isFarmer ? store.getScopedHerds() : store.getHerds() || [];
+  const farms = isFarmer ? store.getScopedFarms() : store.getFarms() || [];
+  const labSamples = isFarmer ? store.getScopedLabSamples() : store.getLabSamples() || [];
+  const vaccinations = isFarmer ? store.getScopedVaccinations() : store.getVaccinations() || [];
+  const treatments = isFarmer ? store.getScopedTreatments() : store.getTreatments() || [];
+  const mortalities = isFarmer ? store.getScopedMortalityReports() : store.getMortalityReports() || [];
+  const alerts = isFarmer ? store.getScopedAlerts() : store.getAlerts() || [];
+  const weather = store.getWeather(currentUser?.districtId);
 
   // Navigation & Modal State
   const [activeModule, setActiveModule] = useState<string>('dashboard');

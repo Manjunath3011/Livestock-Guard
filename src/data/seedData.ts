@@ -29,8 +29,26 @@ export const SEED_USERS: User[] = [
     districtId: 'dt_pune',
     blockId: 'bk_baramati',
     villageId: 'vl_malegaon_bk',
+    village: 'Malegaon Budruk',
     farmId: 'farm_01',
+    farmName: 'Patil Progressive Dairy Farm',
     preferredLanguage: 'en'
+  },
+  {
+    id: 'usr_farmer_2',
+    name: 'Tukaram Gaikwad',
+    email: 'tukaram.farmer@livestockguard.gov.in',
+    phone: '+91 98221 44556',
+    role: 'FARMER',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    stateId: 'st_mah',
+    districtId: 'dt_pune',
+    blockId: 'bk_baramati',
+    villageId: 'vl_shirsuphal',
+    village: 'Shirsuphal',
+    farmId: 'farm_02',
+    farmName: 'Gaikwad Goat & Sheep Breeding Center',
+    preferredLanguage: 'mr'
   },
   {
     id: 'usr_farmer_3',
@@ -43,8 +61,58 @@ export const SEED_USERS: User[] = [
     districtId: 'dt_satara',
     blockId: 'bk_karad',
     villageId: 'vl_vithalwadi',
+    village: 'Vithalwadi',
     farmId: 'farm_03',
+    farmName: 'Krishna Valley Cattle Farm',
     preferredLanguage: 'mr'
+  },
+  {
+    id: 'usr_farmer_4',
+    name: 'Bhavesh Patel',
+    email: 'bhavesh.farmer@livestockguard.gov.in',
+    phone: '+91 98790 12345',
+    role: 'FARMER',
+    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    stateId: 'st_guj',
+    districtId: 'dt_anand',
+    blockId: 'bk_anand_rural',
+    villageId: 'vl_mogar',
+    village: 'Mogar',
+    farmId: 'farm_04',
+    farmName: 'Anand Bio-Secure Dairy Cooperative',
+    preferredLanguage: 'en'
+  },
+  {
+    id: 'usr_farmer_5',
+    name: 'Basavaraj Patil',
+    email: 'basavaraj.farmer@livestockguard.gov.in',
+    phone: '+91 94480 56789',
+    role: 'FARMER',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+    stateId: 'st_kar',
+    districtId: 'dt_belagavi',
+    blockId: 'bk_chikodi',
+    villageId: 'vl_nippani',
+    village: 'Nippani Rural',
+    farmId: 'farm_05',
+    farmName: 'Karnad Smallholder Goat Farm',
+    preferredLanguage: 'kn'
+  },
+  {
+    id: 'usr_farmer_6',
+    name: 'Chaudhary Surendra Singh',
+    email: 'surendra.farmer@livestockguard.gov.in',
+    phone: '+91 98370 88990',
+    role: 'FARMER',
+    avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+    stateId: 'st_up',
+    districtId: 'dt_meerut',
+    blockId: 'bk_daurala',
+    villageId: 'vl_sardhana_rd',
+    village: 'Daurala Khurd',
+    farmId: 'farm_06',
+    farmName: 'Meerut Buffalo Syndicate',
+    preferredLanguage: 'hi'
   },
   {
     id: 'usr_field_worker_1',
@@ -1379,6 +1447,26 @@ export const SEED_VACCINATIONS: VaccinationRecord[] = [
     administeredBy: 'District Para-vet Team',
     administeredByRole: 'FIELD_WORKER',
     status: 'OVERDUE'
+  },
+  {
+    id: 'vac_rec_005',
+    animalId: 'anm_cow_301',
+    animalTag: 'IN-MH-30045101 (Kapila)',
+    herdId: 'hrd_03',
+    species: 'Cattle',
+    farmId: 'farm_03',
+    villageName: 'Vithalwadi',
+    districtName: 'Satara',
+    vaccineId: 'vac_fmd_poly',
+    vaccineName: 'Raksha-Ovac Polyvalent FMD Vaccine',
+    diseasePrevented: 'Foot-and-Mouth Disease',
+    dateAdministered: '2026-03-12',
+    nextDueDate: '2026-09-12',
+    doseNumber: 2,
+    batchNumber: 'RO-2026-S441',
+    administeredBy: 'Dr. Karad Vet Center',
+    administeredByRole: 'VETERINARIAN',
+    status: 'COMPLETED'
   }
 ];
 
@@ -1389,6 +1477,7 @@ export const SEED_TREATMENTS: TreatmentRecord[] = [
     animalId: 'anm_cow_101',
     animalTag: 'IN-MH-10029381 (Gauri)',
     species: 'Cattle',
+    farmId: 'farm_01',
     farmName: 'Patil Progressive Dairy Farm',
     suspectedDisease: 'Foot-and-Mouth Disease (Vesicular Stomatitis)',
     treatmentDate: '2026-08-23',
@@ -1403,6 +1492,46 @@ export const SEED_TREATMENTS: TreatmentRecord[] = [
     treatmentResponse: 'IMPROVING',
     remarks: 'Oral pain relieved after boro-glycerin application; animal began nibbling soft green grass. Milk yield stabilizing at 6 liters.',
     createdAt: '2026-08-23T11:00:00Z'
+  },
+  {
+    id: 'trt_2026_002',
+    caseId: 'cas_2026_002',
+    animalId: 'anm_cow_301',
+    animalTag: 'IN-MH-30045101 (Kapila)',
+    species: 'Cattle',
+    farmId: 'farm_03',
+    farmName: 'Krishna Valley Cattle Farm',
+    suspectedDisease: 'Haemorrhagic Septicaemia (Suspected)',
+    treatmentDate: '2026-08-22',
+    medicines: [
+      { medicineName: 'Oxytetracycline 20% LA', dosage: '20 ml deep IM', durationDays: 3, route: 'INTRAMUSCULAR' },
+      { medicineName: 'Flunixin Meglumine', dosage: '10 ml IV', durationDays: 2, route: 'INTRAMUSCULAR' }
+    ],
+    veterinarianId: 'usr_vet_1',
+    veterinarianName: 'Satara District Mobile Clinic',
+    treatmentResponse: 'IMPROVING',
+    remarks: 'Throat swelling stabilized with cold fomentation and antibiotic coverage.',
+    createdAt: '2026-08-22T14:30:00Z'
+  },
+  {
+    id: 'trt_2026_003',
+    caseId: 'cas_2026_003',
+    animalId: 'anm_goat_501',
+    animalTag: 'IN-KA-50089201',
+    species: 'Goat',
+    farmId: 'farm_05',
+    farmName: 'Karnad Smallholder Goat Farm',
+    suspectedDisease: 'Peste des Petits Ruminants',
+    treatmentDate: '2026-08-21',
+    medicines: [
+      { medicineName: 'Enrofloxacin 10%', dosage: '2.5 ml IM', durationDays: 5, route: 'INTRAMUSCULAR' },
+      { medicineName: 'Oral Rehydration Solution (ORS) + Vitamin C', dosage: 'Ad libitum', durationDays: 7, route: 'ORAL' }
+    ],
+    veterinarianId: 'usr_vet_1',
+    veterinarianName: 'Nippani Taluka Veterinary Dispensary',
+    treatmentResponse: 'DETERIORATING',
+    remarks: 'Severe diarrhea managed with fluid therapy and anti-diarrheals. Flock isolated.',
+    createdAt: '2026-08-21T16:00:00Z'
   }
 ];
 
