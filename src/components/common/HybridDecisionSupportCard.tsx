@@ -110,6 +110,104 @@ export const HybridDecisionSupportCard: React.FC<HybridDecisionSupportCardProps>
       </div>
 
       <div className="p-6 sm:p-7 space-y-6">
+        {/* Multi-Modal Screening Source Attribution */}
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <FlaskConical className="w-3.5 h-3.5 text-indigo-600" />
+              Integrated Surveillance Modalities & Diagnostic Hierarchy
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium">
+              Independent screening layers • Non-diagnostic decision support
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            {/* 1. Structured Tabular ML */}
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+              <div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">1. STRUCTURED ML</span>
+                <span className="font-bold text-slate-900 block truncate">Random Forest (54 features)</span>
+              </div>
+              <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded mt-2 self-start">
+                {mlProbabilityPct}% likelihood
+              </span>
+            </div>
+
+            {/* 2. Computer Vision Image Screening */}
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+              <div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">2. IMAGE SCREENING</span>
+                <span className="font-bold text-slate-900 block truncate">
+                  {assessment.imageScreening
+                    ? assessment.imageScreening.modelArchitecture
+                    : 'Vision Model (Pretrained CNN)'}
+                </span>
+              </div>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-2 self-start ${
+                assessment.imageScreening?.screeningStatus === 'SCREENING_COMPLETED'
+                  ? 'bg-emerald-50 text-emerald-800'
+                  : assessment.imageScreening?.screeningStatus === 'NON_VISUAL_DISEASE_WARNING'
+                  ? 'bg-amber-50 text-amber-800'
+                  : 'bg-sky-50 text-sky-800'
+              }`}>
+                {assessment.imageScreening
+                  ? assessment.imageScreening.screeningStatus === 'MODEL_NOT_READY'
+                    ? 'Training Pending'
+                    : assessment.imageScreening.screeningStatus
+                  : 'Visual Check Attached'}
+              </span>
+            </div>
+
+            {/* 3. Contextual Rule & Proximity Engine */}
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+              <div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">3. CONTEXT & CLUSTERS</span>
+                <span className="font-bold text-slate-900 block truncate">Epidemiological WSM</span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded mt-2 self-start">
+                Score: {ruleEvidence.ruleMatchScore}/100
+              </span>
+            </div>
+
+            {/* 4. Confirmatory Laboratory Diagnosis */}
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+              <div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">4. DEFINITIVE DIAGNOSIS</span>
+                <span className="font-bold text-slate-900 block truncate">Lab Confirmation</span>
+              </div>
+              <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-1.5 py-0.5 rounded mt-2 self-start">
+                {decisionSupport.laboratoryPathway.recommendedTest} Required
+              </span>
+            </div>
+          </div>
+
+          {/* Visual screening preview if photo attached */}
+          {assessment.imageScreening && (
+            <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between text-xs bg-indigo-50/50 p-2.5 rounded-xl">
+              <div className="flex items-center gap-2.5">
+                <img
+                  src={assessment.imageScreening.imageStoragePath}
+                  alt="Clinical evidence"
+                  className="w-8 h-8 rounded-lg object-cover border border-indigo-200"
+                />
+                <div>
+                  <span className="font-bold text-indigo-950 block text-[11px]">
+                    Photo Screened via {assessment.imageScreening.modelArchitecture}
+                  </span>
+                  <span className="text-[10px] text-indigo-700">
+                    {assessment.imageScreening.limitationsNotes[0]}
+                  </span>
+                </div>
+              </div>
+
+              <span className="text-[10px] font-bold bg-white text-indigo-900 px-2 py-0.5 rounded border border-indigo-200">
+                Vet Review: {assessment.imageScreening.veterinarianReviewStatus}
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* 2. Explainable AI: Why the System Flagged This */}
         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
           <div className="flex items-center justify-between">

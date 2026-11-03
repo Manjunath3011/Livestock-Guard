@@ -8,9 +8,11 @@ import {
   Case,
   TemporaryAnimal,
   HistoricalCaseLink,
-  AnimalPhoto
+  AnimalPhoto,
+  ImageScreeningRecord
 } from '../../types';
 import { PhotoEvidenceSection } from '../common/PhotoEvidenceSection';
+import { LivestockImageScreeningCard } from '../common/LivestockImageScreeningCard';
 import { SYMPTOMS_LIST, LOCATION_DATA } from '../../data/knowledgeBase';
 import { store } from '../../services/store';
 import { assessLivestockRisk } from '../../services/riskEngine';
@@ -179,8 +181,9 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
   const [ownerName, setOwnerName] = useState<string>(currentUser.name);
   const [ownerPhone, setOwnerPhone] = useState<string>(currentUser.phone || '+91 98220 11223');
 
-  // Photographic Evidence (Optional)
+  // Photographic Evidence (Optional) & Image Intelligence Screening
   const [attachedPhotos, setAttachedPhotos] = useState<AnimalPhoto[]>([]);
+  const [imageScreeningResult, setImageScreeningResult] = useState<ImageScreeningRecord | null>(null);
 
   // ==========================================
   // SUBMISSION & ESCALATION STATE
@@ -298,6 +301,7 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
       vaccinationStatus,
       existingCases,
       activeOutbreaks,
+      imageScreening: imageScreeningResult || undefined,
       weatherCondition: {
         humidityPct: weather.humidityPct,
         temperatureC: weather.temperatureC,
@@ -318,7 +322,8 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
     vaccinationStatus,
     existingCases,
     activeOutbreaks,
-    weather
+    weather,
+    imageScreeningResult
   ]);
 
   // Backward compatibility alias for legacy views
@@ -1468,8 +1473,18 @@ export const ReportCaseView: React.FC<ReportCaseViewProps> = ({
               })}
           </div>
 
-          {/* Clinical Photographic Evidence Sub-section */}
-          <div className="pt-6 border-t border-slate-100 space-y-3">
+          {/* AI Image-Based Disease Screening & Photographic Evidence */}
+          <div className="pt-6 border-t border-slate-100 space-y-5">
+            <LivestockImageScreeningCard
+              species={selectedSpecies}
+              onSpeciesChange={setSelectedSpecies}
+              animalId={selectedAnimalId || 'anm_report'}
+              currentUser={currentUser}
+              onScreeningComplete={(scr) => {
+                setImageScreeningResult(scr);
+              }}
+            />
+
             <PhotoEvidenceSection
               photos={attachedPhotos}
               onChange={setAttachedPhotos}

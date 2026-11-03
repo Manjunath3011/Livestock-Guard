@@ -44,7 +44,7 @@ export const MLDataAndModelManagement: React.FC = () => {
   const [candidateQueue, setCandidateQueue] = useState<TrainingCandidateRecord[]>([]);
 
   // Navigation tabs within ML management
-  const [activeTab, setActiveTab] = useState<'datasets' | 'training' | 'models' | 'review' | 'queue'>('datasets');
+  const [activeTab, setActiveTab] = useState<'datasets' | 'training' | 'models' | 'review' | 'queue' | 'image_screening'>('datasets');
 
   // Dataset Upload Modal
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -601,6 +601,18 @@ export const MLDataAndModelManagement: React.FC = () => {
           <TestTube className="w-4 h-4" />
           Lab Feedback Queue ({(candidateQueue || []).length})
         </button>
+
+        <button
+          onClick={() => setActiveTab('image_screening')}
+          className={`pb-3 px-3 font-semibold text-sm flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
+            activeTab === 'image_screening'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-indigo-500" />
+          Image Intelligence Engine (CV)
+        </button>
       </div>
 
       {/* TAB 1: DATASETS & PROVENANCE */}
@@ -1084,6 +1096,291 @@ export const MLDataAndModelManagement: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: IMAGE INTELLIGENCE ENGINE (CV PRETRAINED TRANSFER LEARNING) */}
+      {activeTab === 'image_screening' && (
+        <div className="space-y-6">
+          {/* Active Model & Architecture Banner */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700">
+                    <Sparkles className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">
+                      Livestock Image Intelligence Engine — Computer Vision Hub
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Modular deep-learning CNN service for photographic lesion detection and visual triage.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-amber-50 text-amber-900 border border-amber-300 rounded-full text-xs font-bold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  Model Training Pending Real Datasets
+                </span>
+              </div>
+            </div>
+
+            {/* Architecture Comparison & Switcher */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-700">
+                  Pretrained Computer Vision Architectures (ImageNet Transfer Learning)
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Comparing parameter efficiency, edge latency, and lesion texture acuity
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Architecture 1: EfficientNetB0 */}
+                <div className="p-5 rounded-2xl border-2 border-indigo-500 bg-indigo-50/20 space-y-3 relative">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-indigo-600 block">CURRENT PRIMARY BACKBONE</span>
+                      <h4 className="text-base font-black text-slate-900">EfficientNetB0</h4>
+                    </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      ACTIVE
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Compound scaling across depth, width, and resolution. Excels at detecting subtle erythema, vesicles, and circumscribed skin nodule textures.
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-slate-400 block text-[9px] font-bold">PARAMETERS</span>
+                      <span className="font-bold text-slate-800">5.3 Million</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-slate-400 block text-[9px] font-bold">MODEL SIZE</span>
+                      <span className="font-bold text-slate-800">20.8 MB (FP32)</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-slate-400 block text-[9px] font-bold">INFERENCE CPU</span>
+                      <span className="font-bold text-slate-800">~32 ms</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-slate-400 block text-[9px] font-bold">DEPLOYMENT</span>
+                      <span className="font-bold text-slate-800">Cloud / Server</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Architecture 2: MobileNetV2 */}
+                <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-500 block">EDGE / OFFLINE BACKBONE</span>
+                      <h4 className="text-base font-black text-slate-900">MobileNetV2</h4>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
+                      STANDBY
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Inverted residuals and linear bottlenecks. Ultra-low latency and minimal memory footprint tailored for field-worker mobile devices in low-connectivity rural zones.
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-slate-400 block text-[9px] font-bold">PARAMETERS</span>
+                      <span className="font-bold text-slate-800">3.5 Million</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-slate-400 block text-[9px] font-bold">MODEL SIZE</span>
+                      <span className="font-bold text-slate-800">13.9 MB (FP32)</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-slate-400 block text-[9px] font-bold">INFERENCE CPU</span>
+                      <span className="font-bold text-slate-800">~18 ms</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                      <span className="text-slate-400 block text-[9px] font-bold">DEPLOYMENT</span>
+                      <span className="font-bold text-slate-800">Mobile / Edge</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Scientific Integrity Disclaimer */}
+            <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-300 text-xs text-amber-950 space-y-1.5">
+              <div className="flex items-center gap-2 font-black text-amber-900">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                Scientifically Honest Model Readiness Policy
+              </div>
+              <p className="leading-relaxed text-[11px]">
+                In accordance with scientific and regulatory standards, <strong>LivestockGuard never uses synthetic or unverified images</strong> to fabricate model accuracy. Automated image predictions will remain in <code className="bg-white px-1.5 py-0.5 rounded border border-amber-300 font-bold">TRAINING_PENDING</code> until legitimate, institutional veterinary image datasets (e.g. ICAR-NIVEDI, Kaggle Cattle Disease V2) are imported, verified for licensing, deduplicated, and audited.
+              </p>
+            </div>
+          </div>
+
+          {/* 11-Disease Visual Feasibility & Diagnostic Boundaries Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                  Target 11-Disease Visual Feasibility Matrix
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Explicit medical categorization of which conditions can be visually screened versus those requiring strict laboratory biohazard protocols.
+                </p>
+              </div>
+              <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">
+                11 Target Conditions
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                    <th className="py-2.5 px-3">Disease & Code</th>
+                    <th className="py-2.5 px-3">Target Species</th>
+                    <th className="py-2.5 px-3">Visual Feasibility</th>
+                    <th className="py-2.5 px-3">Visual Lesion Profile</th>
+                    <th className="py-2.5 px-3">Mandatory Laboratory Diagnostic</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-[11px]">
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">1. Foot-and-Mouth (FMD)</td>
+                    <td className="py-2.5 px-3 text-slate-600">Cattle, Buffalo, Goats, Sheep, Pigs</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
+                        Visual Feasible
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Oral/dental pad vesicles, interdigital ulcers, profuse salivation</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">Antigen ELISA / RT-PCR</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">2. Lumpy Skin Disease (LSD)</td>
+                    <td className="py-2.5 px-3 text-slate-600">Cattle, Buffalo</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
+                        Visual Feasible
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Circumscribed firm cutaneous nodules (2-5cm), sitfast scabs</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">Real-time PCR (Capripox)</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">3. Peste des Petits Ruminants (PPR)</td>
+                    <td className="py-2.5 px-3 text-slate-600">Goats, Sheep</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
+                        Visual Feasible
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Necrotic stomatitis, encrusted scabby lips, purulent oculonasal discharge</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">c-ELISA / RT-PCR</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">4. Haemorrhagic Septicaemia (HS)</td>
+                    <td className="py-2.5 px-3 text-slate-600">Buffalo, Cattle</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-amber-100 text-amber-800">
+                        Lab Required
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Submandibular/brisket edema (non-specific; mimics snakebite/anthrax)</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">Blood Smear Bipolar Staining / PCR</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">5. Anthrax</td>
+                    <td className="py-2.5 px-3 text-slate-600">All ruminants, Zoonotic</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-rose-100 text-rose-800">
+                        Strict Biohazard Lab
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Sudden death, dark unclotted blood from orifices (DO NOT OPEN CARCASS)</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">M'Fadyean capsule stain / PCR</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">6. Black Quarter (BQ)</td>
+                    <td className="py-2.5 px-3 text-slate-600">Cattle, Sheep</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-amber-100 text-amber-800">
+                        Lab Required
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Emphysematous crepitating muscle swelling (requires palpation)</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">Direct FAT / PCR on aspirates</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">7. Brucellosis</td>
+                    <td className="py-2.5 px-3 text-slate-600">Cattle, Buffalo, Sheep, Goats, Pigs</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-amber-100 text-amber-800">
+                        Lab Required
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Late-term abortion, hygroma, orchitis (photos clinically non-diagnostic)</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">RBPT / Milk Ring Test / ELISA</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">8. Clinical Mastitis</td>
+                    <td className="py-2.5 px-3 text-slate-600">Cattle, Buffalo, Goats</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
+                        Visual Feasible
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Swollen erythematous udder, clots/flakes in strip-cup milk</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">CMT / Milk Microbial Culture</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">9. African Swine Fever (ASF)</td>
+                    <td className="py-2.5 px-3 text-slate-600">Pigs</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-purple-100 text-purple-800">
+                        PCR Mandatory
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Ear/abdominal cyanosis and erythema (clinically mimics CSF/PRRS)</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">Real-time PCR / Antigen ELISA</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">10. Avian Influenza</td>
+                    <td className="py-2.5 px-3 text-slate-600">Poultry</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-purple-100 text-purple-800">
+                        PCR Mandatory
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Comb/wattle cyanosis and edema (clinically mimics Newcastle Disease)</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">RT-PCR / HI Test</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">11. Other / Healthy</td>
+                    <td className="py-2.5 px-3 text-slate-600">All species</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
+                        Visual Feasible
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600">Smooth coat, clear eyes and nostrils, standard body condition</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500">Routine Health Check</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

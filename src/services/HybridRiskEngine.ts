@@ -8,7 +8,8 @@ import {
   ExplainableFactor,
   SupportiveCareStep,
   HomeCareLevel,
-  MLPredictionFeatureInput
+  MLPredictionFeatureInput,
+  ImageScreeningRecord
 } from '../types';
 import { assessLivestockRisk, calculateDistanceKm } from './riskEngine';
 import { mlPredictionService } from './MLPredictionService';
@@ -37,6 +38,7 @@ export interface HybridRiskAssessmentParams {
     rainfallMm: number;
     season?: 'MONSOON' | 'WINTER' | 'SUMMER' | 'POST_MONSOON';
   };
+  imageScreening?: ImageScreeningRecord;
 }
 
 export class HybridRiskEngine {
@@ -207,6 +209,39 @@ export class HybridRiskEngine {
       });
     }
 
+    // Image Intelligence Screening Factor (if photograph provided)
+    if (params.imageScreening) {
+      const scr = params.imageScreening;
+      if (scr.screeningStatus === 'NON_VISUAL_DISEASE_WARNING') {
+        explainableFactors.push({
+          category: 'SYMPTOMS',
+          title: 'Visual Screening Boundary (Lab Required)',
+          description: scr.limitationsNotes[0] || 'Condition requires laboratory confirmation; surface photography is non-diagnostic.',
+          weight: 25,
+          severity: 'ALERT',
+          isFlagged: true
+        });
+      } else if (scr.screeningStatus === 'MODEL_NOT_READY' || scr.screeningStatus === 'TRAINING_PENDING') {
+        explainableFactors.push({
+          category: 'SYMPTOMS',
+          title: 'Image Quality Validated (CNN Weights Pending)',
+          description: `Photograph verified (${scr.imageQualityStatus}). CNN screening weights pending approved institutional dataset.`,
+          weight: 10,
+          severity: 'INFO',
+          isFlagged: false
+        });
+      } else if (scr.screeningStatus === 'SCREENING_COMPLETED' && scr.predictedClassName) {
+        explainableFactors.push({
+          category: 'SYMPTOMS',
+          title: 'Computer Vision Screening Concordance',
+          description: `Visual pattern screening indicates compatibility with ${scr.predictedClassName} (${scr.confidenceScore || 0}% confidence).`,
+          weight: 25,
+          severity: 'INFO',
+          isFlagged: true
+        });
+      }
+    }
+
     // Summary Explanation
     const flaggedReasons = explainableFactors.map(f => `• ${f.title}: ${f.description}`);
     const summaryExplanation = `Case flagged as ${finalRiskLevel} risk (Score: ${hybridScore}/100) due to:\n${flaggedReasons.join('\n')}`;
@@ -299,6 +334,16 @@ export class HybridRiskEngine {
       rankedSuspectedDiseases,
       explainableFactors,
       summaryExplanation,
+
+      // Multi-Modal Screening Contributions
+      imageScreening: params.imageScreening,
+      contributingSources: {
+        structuredML: true,
+        clinicalRuleEngine: true,
+        imageScreening: Boolean(params.imageScreening),
+        contextualGIS: Boolean(nearbyCountIn10Km > 0),
+        labConfirmation: false
+      },
 
       decisionSupport: {
         vaccinationGuidance: {

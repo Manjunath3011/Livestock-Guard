@@ -8,6 +8,7 @@ import {
   ReportCredibilityFeatureBreakdown,
   ReportMLFeatureVector
 } from './credibility';
+import type { ImageScreeningRecord } from './imageScreening';
 
 export * from './credibility';
 
@@ -1160,6 +1161,16 @@ export interface HybridRiskAssessment {
   explainableFactors: ExplainableFactor[];
   summaryExplanation: string;
 
+  // Multi-Modal Screening Contributions
+  imageScreening?: ImageScreeningRecord;
+  contributingSources?: {
+    structuredML: boolean;
+    clinicalRuleEngine: boolean;
+    imageScreening: boolean;
+    contextualGIS: boolean;
+    labConfirmation?: boolean;
+  };
+
   // Integrated Decision Support System (DSS)
   decisionSupport: {
     // 1. Vaccination Action
@@ -1207,3 +1218,4 @@ export interface HybridRiskAssessment {
 
 export * from './location';
 export * from './gis';
+export * from './imageScreening';
